@@ -319,9 +319,18 @@ const CFG = {
   rejectionWickRatio: 0.5,
   displacementCloseZone: 0.25,
   fvgMinAtrMult: 0.2, fvgFillPct: 0.5,
+  fvgMaxSearchCandles: 15,
   retestWindow: 3, retestWickRatio: 0.4,
-  slBufferAtrMult: 0.1,
+  slBufferAtrMult: 0.1, slBufferMinTicks: 2,
   liquidityLookback: 50,
+  // --- V1.2.1: perbaikan bug (lihat CHANGELOG di bawah bootstrap utk ringkasan) ---
+  waitingAbandonAtrMult: 3,     // level WAITING dibatalkan kalau harga sudah sejauh ini tanpa breach
+  levelCooldownMinutes: 30,     // level yg FAILED via continuation/too_deep/stale tak boleh diambil lagi selama ini
+  hypothesisMaxAgeMinutes: 60,  // batas umur hipotesis dari first-sweep VALID sampai CONFIRMED
+  secondSweepMaxRetries: 20,    // batas percobaan ulang second sweep sebelum hipotesis dianggap basi
+  tradeMaxAgeMinutes: 240,      // time-stop setelah CONFIRMED (posisi dianggap terbuka)
+  minRR: 1.0,                   // R:R minimum saat retest tertolak, kalau tidak terpenuhi -> tidak CONFIRMED
+  extLiquidityMatchAtrMult: 0.1,// toleransi pencocokan level dgn memori sweptExternal/invalidLevel
 };
 
 const T = {
@@ -432,11 +441,13 @@ function computeATRSeries(candles, period){
 
 function lastValid(arr){ for(let i=arr.length-1;i>=0;i--) if(arr[i]!=null) return arr[i]; return null; }
 
-function computeVolatility(candles){
-  const atrs = computeATRSeries(candles, CFG.atrPeriod);
-  const atr = lastValid(atrs);
+// V1.2.1: menerima atrSeries yg SUDAH dihitung (bukan menghitung ulang dari candles) supaya
+// stepEngine bisa memakai deret ATR yg sama utk findDisplacement/findFVG (§ anti-repaint) tanpa
+// menghitung ATR dua kali per langkah.
+function computeVolatility(atrSeries){
+  const atr = lastValid(atrSeries);
   if(atr==null) return { atr:null, label:'—' };
-  const win = atrs.filter(v=>v!=null).slice(-CFG.atrAvgPeriod);
+  const win = atrSeries.filter(v=>v!=null).slice(-CFG.atrAvgPeriod);
   const avg = win.reduce((a,b)=>a+b,0)/win.length;
   const ratio = avg>0 ? atr/avg : 1;
   const label = ratio<0.7 ? 'RENDAH' : ratio>1.3 ? 'TINGGI' : 'NORMAL';
@@ -481,6 +492,32 @@ function biasFromSwings(m5Candles){
   return 'RANGING';
 }
 
+// --- V1.2.1: memori level eksternal (§4.3 fix, lihat pemakaian di stepEngine 1a) ---
+// `sweptList` = harga level yg SUDAH pernah tercatat tersapu VALID di sisi ini (lintas hipotesis).
+// `cooldown` = {price, untilTs} level yg BARU SAJA gagal via breakout/basi, diblokir sementara.
+function extLevelBlocked(price, atr, nowTs, sweptList, cooldown){
+  const tol = (atr||0)*CFG.extLiquidityMatchAtrMult;
+  if(cooldown && nowTs < cooldown.untilTs && Math.abs(price-cooldown.price) <= tol) return true;
+  return sweptList.some(p=>Math.abs(p-price) <= tol);
+}
+function pickExtremeUnswept(list, better, atr, nowTs, sweptList, cooldown){
+  let best=null;
+  for(const s of list){
+    if(extLevelBlocked(s.price, atr, nowTs, sweptList, cooldown)) continue;
+    if(!best || better(s.price, best.price)) best = s;
+  }
+  return best;
+}
+
+// V1.2.1: syarat momentum yg disebut di blueprint §4.3 ("3 candle M1 terakhir searah level") tapi
+// dulu tidak diimplementasikan -- hanya jarak (≤1.5 ATR) yg dicek. Longgar (net pergerakan, bukan
+// wajib monoton tiap candle) supaya tidak terlalu ketat menolak approach yg sah.
+function approachMomentumOk(m1, dir){
+  if(m1.length<4) return true;
+  const c0=m1[m1.length-4], c3=m1[m1.length-1];
+  return dir==='above' ? c3.c >= c0.c : c3.c <= c0.c;
+}
+
 /* ========================== 3. AGREGATOR CANDLE (TICK -> OHLC) ========================== */
 
 function makeAggregator(periodSec, cap, onClose){
@@ -491,7 +528,16 @@ function makeAggregator(periodSec, cap, onClose){
     const sz = size>0 ? size : 1; // pair tanpa tape asli (cTrader) kirim size=1/tick -> jadi proksi hitungan tick
     const bucket = Math.floor(ts/periodMs)*periodMs;
     if(!cur || cur.t !== bucket){
-      if(cur) { candles.push(cur); if(candles.length>cap) candles.shift(); onClose && onClose(candles); }
+      // V1.2.1 fix (audit A6/C1): dulu onClose (-> recompute -> stepEngine) dipanggil SEBELUM `cur`
+      // diganti candle baru, jadi series() = candles.concat([cur]) mengembalikan candle yg BARU
+      // SAJA ditutup itu untuk KEDUA kalinya (candle yg sama muncul di posisi terakhir `candles`
+      // DAN sbg `cur`). stepEngine selalu menganggap elemen TERAKHIR array sbg "candle yg baru
+      // ditutup", jadi live selalu mengevaluasi candle yg sama dua kali (mendistorsi ATR, jendela
+      // reclaim, classifyPostSweep, dst. -- terverifikasi lewat node). Sekarang `cur` di-null-kan
+      // dulu SEBELUM onClose dipanggil, jadi series() saat itu = candle tertutup SEKALI saja (tanpa
+      // draft baru yg baru berisi 1 tick) -- persis "dipanggil setiap candle M1 baru DITUTUP" spt
+      // yg dimaksud desainnya. Candle baru baru dibuat SETELAH onClose selesai.
+      if(cur) { candles.push(cur); if(candles.length>cap) candles.shift(); cur = null; onClose && onClose(candles); }
       cur = { t:bucket, o:price, h:price, l:price, c:price, v:sz };
     } else {
       cur.c = price; if(price>cur.h) cur.h=price; if(price<cur.l) cur.l=price; cur.v += sz;
@@ -593,15 +639,25 @@ function newEngineState(asset){
     mss:null,                // {ts, level}
     mssSearchFrom:null,      // kursor kandidat displacement yg sudah dicoba & gagal MSS (lihat §6)
     fvg:null,                // {ts, top, bottom, dir, filled}
+    fvgSearchFrom:null,      // kursor FVG yg sudah ditolak (terisi/timeout) -- cegah temu-ulang gap yg SAMA (§6)
     retest:null,             // {ts, rejected}
     sl:null, tp:null, rr:null,
     timeline:[],
     lastUpdate:0,
+    // --- V1.2.1 ---
+    sweptExternal:{ above:[], below:[] }, // memori level eksternal yg SUDAH pernah disapu VALID (§4.3 fix)
+    invalidLevel:{ above:null, below:null }, // {price, untilTs} -- cooldown level yg baru saja gagal (breakout/basi)
+    hypothesisSince:null,    // ts first-sweep VALID -- dipakai utk kedaluwarsa hipotesis (anti WAIT selamanya)
+    secondSweepRetries:0,    // penghitung retry second-sweep (anti spam timeline + anti macet)
   };
 }
 
-function pushTimeline(st, msg, kind){
-  st.timeline.push({ t:Date.now(), msg, kind: kind||'' });
+// ts = waktu CANDLE yg memicu event (bukan Date.now()) -- supaya timeline tetap benar saat
+// replayHistory() memutar ulang ratusan candle sekaligus (dulu semua event replay ter-stempel
+// waktu SAAT REPLAY DIJALANKAN, bukan waktu kejadiannya di histori). Live tetap dekat Date.now()
+// krn ts yg dikirim = waktu candle yg baru saja ditutup.
+function pushTimeline(st, msg, kind, ts){
+  st.timeline.push({ t: ts!=null?ts:Date.now(), msg, kind: kind||'' });
   if(st.timeline.length>60) st.timeline.shift();
 }
 
@@ -609,8 +665,11 @@ function resetHypothesis(st, keepExternal){
   st.activeSweep=null; st.postSweepState=null; st.postSweepSince=null; st.range=null;
   st.atrRef=null; st.compression=false;
   st.internalLiquidity=null; st.secondSweep=null; st.displacement=null; st.mss=null;
-  st.mssSearchFrom=null; st.fvg=null; st.retest=null; st.sl=null; st.tp=null; st.rr=null;
+  st.mssSearchFrom=null; st.fvg=null; st.fvgSearchFrom=null; st.retest=null; st.sl=null; st.tp=null; st.rr=null;
+  st.hypothesisSince=null; st.secondSweepRetries=0;
   if(!keepExternal) st.externalLiquidity={above:null,below:null};
+  // sweptExternal & invalidLevel SENGAJA tidak direset di sini -- keduanya memori lintas-hipotesis
+  // (level yg sudah tersapu / baru gagal), bukan bagian dari hipotesis yg sedang berjalan.
 }
 
 function setStatus(st, s){ if(st.status!==s){ st.status=s; } }
@@ -622,7 +681,7 @@ function evaluateSweep(sweep, level, dir, candles, atr, ticksize, settings){
   const minBreach = Math.max(ticksize*CFG.breachMinTicks, atr*CFG.breachMinAtrMult);
   if(!sweep){
     const breached = dir==='above' ? last.h >= level+minBreach : last.l <= level-minBreach;
-    if(!breached) return { level, dir, state:'WAITING' };
+    if(!breached) return { level, dir, state:'WAITING', armedTs:last.t };
     const wick = dir==='above' ? (last.h-Math.max(last.o,last.c)) : (Math.min(last.o,last.c)-last.l);
     const range = Math.max(last.h-last.l, 1e-9);
     const extreme = dir==='above' ? last.h : last.l;
@@ -637,6 +696,15 @@ function evaluateSweep(sweep, level, dir, candles, atr, ticksize, settings){
       const extreme = dir==='above' ? last.h : last.l;
       return { level, dir, state:'PARTIAL', breachTs:last.t, breachPrice: extreme, maxExtreme: extreme,
         wickRatio: wick/range };
+    }
+    // V1.2.1 fix: dulu WAITING tidak pernah kedaluwarsa -- kalau harga menjauh dari level tanpa
+    // pernah breach, mesin terkunci di level itu tanpa batas (terbukti replay: 85-97% candle
+    // macet di WAITING, satu kasus >1300 jam). Batalkan kalau harga sudah >waitingAbandonAtrMult
+    // ATR dari level tanpa breach -- level dianggap basi, bukan gagal karena harga (biar §1a
+    // langsung mencari level baru lewat jalur FAILED yg sudah ada, tanpa gerbang baru).
+    const dist = dir==='above' ? (level - last.c) : (last.c - level);
+    if(dist > atr*CFG.waitingAbandonAtrMult){
+      return { level, dir, state:'FAILED', failReason:'stale' };
     }
     return sweep;
   }
@@ -657,6 +725,12 @@ function evaluateSweep(sweep, level, dir, candles, atr, ticksize, settings){
         // noise breach tipis) -- anulir, bukan diloloskan diam-diam.
         sweep.state='FAILED'; sweep.failReason='too_shallow'; return sweep;
       }
+      // V1.2.1 fix: wickRatio dulu HANYA dari candle breach pertama, sehingga breach dangkal yg
+      // ditutup dgn hammer reclaim kuat keliru ditolak. Ambil yg TERBESAR antara wick candle
+      // breach & wick candle reclaim -- keduanya sah menunjukkan rejection.
+      const reclaimRange = Math.max(last.h-last.l, 1e-9);
+      const reclaimWick = dir==='above' ? (last.h-Math.max(last.o,last.c)) : (Math.min(last.o,last.c)-last.l);
+      sweep.wickRatio = Math.max(sweep.wickRatio||0, reclaimWick/reclaimRange);
       sweep.state='VALID'; sweep.reclaimTs=last.t; sweep.breachPrice=sweep.maxExtreme;
       return sweep;
     }
@@ -708,16 +782,24 @@ function medianBody(win){
   return bodies[Math.floor(bodies.length/2)];
 }
 
-function findDisplacement(candles, atr, dir, sinceTs, settings){
+// atrSeries = deret ATR SEJAJAR dgn `candles` (index-matched), bukan satu skalar st.atr --
+// V1.2.1 fix: dulu setiap candle histori diuji thd ATR SEKARANG, jadi kalau ATR menyusut belakangan,
+// candle lama yg dulu GAGAL syarat displacement bisa "lolos" retroaktif berlangkah-langkah kemudian
+// (bukti: findDisplacement dipanggil ulang tiap step dgn window yg sama, hasil bisa berubah tanpa
+// candle baru). Dgn ATR per-candle, hasil untuk satu candle historis tetap sama dari awal ke akhir.
+function findDisplacement(candles, atrSeries, dir, sinceTs, settings){
   const win = candles.filter(c=>c.t>=sinceTs);
+  const offset = candles.length - win.length;
   for(let i=1;i<win.length;i++){
     const c=win[i], prev=win[i-1];
+    const atrAtC = atrSeries[offset+i];
+    if(atrAtC==null) continue;
     const body = Math.abs(c.c-c.o);
     if(settings.displacementMode==='medianBody'){
       const threshold = settings.displacementMedianBodyMult * medianBody(win.slice(Math.max(0,i-10), i));
       if(body < threshold) continue;
     } else {
-      if(body < atr*settings.displacementAtrMult) continue;
+      if(body < atrAtC*settings.displacementAtrMult) continue;
       const prevBody = Math.abs(prev.c-prev.o);
       if(body <= prevBody) continue;
     }
@@ -749,34 +831,93 @@ function findMSS(candles, dispTs, dir, settings){
   return broke ? { ts:dispTs, level, byWick: !!(!settings.mssRequireClose && !(dir==='above' ? disp.c<level : disp.c>level)) } : null;
 }
 
-function findFVG(candles, mssTs, dir, atr){
+// atrSeries = deret ATR index-matched dgn `candles` (sama alasan dgn findDisplacement).
+// V1.2.1 fix: pencarian dulu TANPA BATAS ke depan (loop sampai candles.length-2), jadi gap yg
+// terbentuk arbitrer lama setelah MSS tetap diterima sbg "FVG"-nya. Dibatasi fvgMaxSearchCandles
+// candle setelah MSS -- kalau tidak ketemu di jendela itu, findFVG akan TERUS menghasilkan null
+// (jendela pencariannya tetap, tidak melebar), yg berarti hipotesis ini otomatis mandek dan akan
+// kena kedaluwarsa hipotesis (§ hypothesisMaxAgeMinutes) alih-alih menunggu gap kapan pun muncul.
+// `afterTs` (V1.2.1, kursor fvgSearchFrom): kalau diisi, gap yg C3-nya di ts<=afterTs dilewati --
+// dipakai supaya FVG yg baru saja DITOLAK (terisi/timeout di checkRetest) tidak langsung ketemu
+// LAGI persis sama di langkah berikutnya (findFVG deterministik utk input yg sama -> tanpa ini,
+// akan jadi retry-loop tanpa akhir sampai kedaluwarsa hipotesis kebetulan menyelamatkannya).
+function findFVG(candles, atrSeries, mssTs, dir, afterTs){
   const idx = candles.findIndex(c=>c.t===mssTs);
   if(idx<0) return null;
-  for(let i=Math.max(0,idx-2); i<candles.length-2; i++){
+  const searchEnd = Math.min(candles.length-2, idx+CFG.fvgMaxSearchCandles);
+  let startI = Math.max(0, idx-2);
+  if(afterTs!=null){
+    const afterIdx = candles.findIndex(c=>c.t>afterTs);
+    if(afterIdx<0) return null; // belum ada candle baru setelah gap yg ditolak -- tunggu
+    startI = Math.max(startI, afterIdx);
+  }
+  for(let i=startI; i<searchEnd; i++){
     const c1=candles[i], c3=candles[i+2];
+    if(!c3) break;
+    const atrAtC3 = atrSeries[i+2];
+    if(atrAtC3==null) continue;
     // dir='below' -> BULLISH -> FVG naik: c1.h < c3.l (harga meloncat ke atas, gap di tengah).
     // dir='above' -> BEARISH -> FVG turun: c1.l > c3.h (harga meloncat ke bawah).
-    if(dir==='below' && c1.h < c3.l && (c3.l-c1.h) >= atr*CFG.fvgMinAtrMult){
+    if(dir==='below' && c1.h < c3.l && (c3.l-c1.h) >= atrAtC3*CFG.fvgMinAtrMult){
       return { ts:c3.t, top:c3.l, bottom:c1.h, dir, filled:0 };
     }
-    if(dir==='above' && c1.l > c3.h && (c1.l-c3.h) >= atr*CFG.fvgMinAtrMult){
+    if(dir==='above' && c1.l > c3.h && (c1.l-c3.h) >= atrAtC3*CFG.fvgMinAtrMult){
       return { ts:c3.t, top:c1.l, bottom:c3.h, dir, filled:0 };
     }
   }
   return null;
 }
 
+// V1.2.1 fix (3 bug sekaligus, semua soal retest yg terlalu longgar):
+// (1) sinceTs sekarang HARUS fvg.ts (candle ke-3 pembentuk FVG), bukan mss.ts -- dulu retest bisa
+//     "tersentuh" oleh candle FVG itu sendiri (batas FVG = high/low candle itu persis), sehingga
+//     CONFIRMED bisa terjadi tanpa harga benar-benar kembali ke zona. `candles.filter(c=>c.t>sinceTs)`
+//     (strict >, bukan >=) memastikan candle FVG sendiri dikecualikan.
+// (2) fvg.filled kini benar-benar dihitung (penetrasi harga ke dlm zona) dan dicek thd fvgFillPct --
+//     dulu field ini didefinisikan tapi tidak pernah diperbarui, jadi "FVG sudah terisi >50% = batal"
+//     (blueprint §4.8) tidak pernah berlaku.
+// (3) retestWindow (didefinisikan di CFG tapi dulu tidak pernah dibaca) sekarang benar2 membatasi:
+//     begitu harga MENYENTUH zona, rejection wick wajib muncul dalam retestWindow candle SETELAH
+//     sentuhan pertama itu -- lewat dari itu, retest dianggap gagal (bukan digantung selamanya).
 function checkRetest(candles, fvg, sinceTs){
-  const win = candles.filter(c=>c.t>=sinceTs);
+  const win = candles.filter(c=>c.t>sinceTs);
+  let touchIdx = -1;
   for(let i=0;i<win.length;i++){
     const c=win[i];
+    const overlapTop = Math.min(c.h, fvg.top), overlapBottom = Math.max(c.l, fvg.bottom);
+    if(overlapTop > overlapBottom){
+      const span = Math.max(fvg.top-fvg.bottom, 1e-9);
+      // Penetrasi = seberapa jauh harga menembus ke sisi JAUH zona (bukan cuma sisi dekat) --
+      // itulah yg dimaksud "terisi" (fill), berbeda dari "tersentuh" (touch).
+      const penetration = fvg.dir==='below'
+        ? clamp((fvg.top - c.l) / span, 0, 1)
+        : clamp((c.h - fvg.bottom) / span, 0, 1);
+      fvg.filled = Math.max(fvg.filled, penetration);
+    }
     const touched = c.l<=fvg.top && c.h>=fvg.bottom;
-    if(!touched) continue;
-    const range=Math.max(c.h-c.l,1e-9);
-    const wick = fvg.dir==='above' ? (c.h-Math.max(c.o,c.c)) : (Math.min(c.o,c.c)-c.l);
-    if(wick/range >= CFG.retestWickRatio) return { ts:c.t, rejected:true };
+    if(touched && touchIdx<0) touchIdx = i;
+    if(touchIdx>=0 && fvg.filled > CFG.fvgFillPct) return { ts:c.t, rejected:false, expired:'filled' };
+    if(touchIdx>=0 && i>=touchIdx && i<touchIdx+CFG.retestWindow){
+      const range=Math.max(c.h-c.l,1e-9);
+      const wick = fvg.dir==='above' ? (c.h-Math.max(c.o,c.c)) : (Math.min(c.o,c.c)-c.l);
+      if(wick/range >= CFG.retestWickRatio) return { ts:c.t, rejected:true };
+    }
+    if(touchIdx>=0 && i>=touchIdx+CFG.retestWindow){
+      return { ts:c.t, rejected:false, expired:'timeout' };
+    }
   }
   return null;
+}
+
+// V1.2.1 fix (audit C8): R:R dihitung TERARAH sesuai `dir` -- kalau TP ternyata sudah di sisi yg
+// SALAH dari entry, hasilnya NEGATIF (dulu Math.abs membuatnya tetap tampil positif meski TP sudah
+// terlewati harga). null kalau TP/SL tidak ada atau risiko ~0.
+function computeRR(tp, entry, sl, dir){
+  if(tp==null || sl==null) return null;
+  const risk = Math.abs(entry-sl);
+  if(risk<=1e-9) return null;
+  const reward = dir==='above' ? (entry-tp) : (tp-entry);
+  return reward/risk;
 }
 
 // Satu langkah mesin dipanggil setiap kali candle M1 baru DITUTUP.
@@ -785,7 +926,11 @@ function stepEngine(st, m1, m5, ticksize){
   const last = m1[m1.length-1];
   st.price = last.c; st.lastUpdate = Date.now();
 
-  const vol = computeVolatility(m1);
+  // V1.2.1: atrSeries dihitung SEKALI di sini dan dipakai jg oleh findDisplacement/findFVG (index-
+  // matched dgn m1) supaya candle historis dinilai thd ATR SAAT ITU, bukan ATR sekarang (anti-repaint
+  // -- lihat catatan panjang di findDisplacement).
+  const atrSeries = computeATRSeries(m1, CFG.atrPeriod);
+  const vol = computeVolatility(atrSeries);
   st.atr = vol.atr; st.volLabel = vol.label;
   const er = efficiencyRatio(m5.length>=CFG.erPeriod+1?m5:m1, CFG.erPeriod);
   st.regime = er==null ? 'RANGING' : (er>CFG.erTrendMin ? 'TRENDING' : 'RANGING');
@@ -795,16 +940,29 @@ function stepEngine(st, m1, m5, ticksize){
   // 1a) Belum ada sweep aktif (atau yang lalu FAILED): cari liquidity eksternal terdekat & mulai lacak.
   if(!st.activeSweep || st.activeSweep.state==='FAILED'){
     const wasFailed = st.activeSweep && st.activeSweep.state==='FAILED';
-    const sw = computeSwings(m5.slice(-CFG.liquidityLookback), CFG.fractalL);
-    const highs = sw.filter(s=>s.type==='high'); const lows = sw.filter(s=>s.type==='low');
-    const above = highs.length ? highs[highs.length-1] : null;
-    const below = lows.length ? lows[lows.length-1] : null;
-    st.externalLiquidity = { above: above?above.price:null, below: below?below.price:null };
     if(wasFailed){
-      pushTimeline(st, `Sweep gagal (kontinuasi) @ ${fmt(st.activeSweep.breachPrice,4)} — mencari level baru`, 'inv');
+      const failedLevel = st.activeSweep.level, failedDir = st.activeSweep.dir, reason = st.activeSweep.failReason;
+      // V1.2.1 fix (audit A1): level yg gagal krn breakout sungguhan (continuation/too_deep) atau
+      // krn ditinggalkan harga (stale) dikunci sementara (cooldown) supaya TIDAK langsung diambil
+      // lagi candle berikutnya -- dulu ini membuat breakout keliru terbaca ulang sbg sweep VALID
+      // begitu ada pullback dangkal + reclaim kecil. too_shallow/timeout (noise breach, bukan
+      // breakout sungguhan) TIDAK di-cooldown, boleh langsung dicoba ulang di level yg sama.
+      if(reason==='continuation' || reason==='too_deep' || reason==='stale'){
+        st.invalidLevel[failedDir] = { price: failedLevel, untilTs: last.t + CFG.levelCooldownMinutes*60000 };
+      }
+      const reasonLabel = {continuation:'kontinuasi (breakout)', too_deep:'terlalu dalam', too_shallow:'terlalu dangkal', timeout:'timeout reclaim', stale:'level ditinggalkan harga'}[reason] || reason || '?';
+      pushTimeline(st, `Sweep gagal (${reasonLabel}) @ ${fmt(failedLevel,4)} — mencari level baru`, 'inv', last.t);
       resetHypothesis(st, true);
       setStatus(st, T.status.DEVELOPING);
     }
+    const sw = computeSwings(m5.slice(-CFG.liquidityLookback), CFG.fractalL);
+    // V1.2.1 fix (audit C3): dulu selalu mengambil fractal M5 TERAKHIR (paling baru), bukan yg
+    // PALING EKSTREM & belum tersapu (blueprint §4.3). Sekarang pilih yg paling ekstrem di antara
+    // fractal yg (a) belum pernah tercatat tersapu VALID (sweptExternal) dan (b) tidak sedang
+    // cooldown (invalidLevel).
+    const above = pickExtremeUnswept(sw.filter(s=>s.type==='high'), (a,b)=>a>b, st.atr, last.t, st.sweptExternal.above, st.invalidLevel.above);
+    const below = pickExtremeUnswept(sw.filter(s=>s.type==='low'),  (a,b)=>a<b, st.atr, last.t, st.sweptExternal.below, st.invalidLevel.below);
+    st.externalLiquidity = { above: above?above.price:null, below: below?below.price:null };
     if(!above && !below) { setStatus(st, T.status.OBSERVE); return; }
 
     // Jarak bertanda: <=0 berarti candle ini SUDAH menyentuh/menembus level (jangan diblokir gate approach).
@@ -815,6 +973,9 @@ function stepEngine(st, m1, m5, ticksize){
     if(level==null){ setStatus(st, T.status.OBSERVE); return; }
     const touch = dir==='above' ? touchAbove : touchBelow;
     if(touch > st.atr*CFG.approachAtrMult){ setStatus(st, T.status.OBSERVE); return; }
+    // V1.2.1: syarat momentum yg disebut di blueprint §4.3 ("3 candle M1 terakhir searah level")
+    // tapi dulu tidak diimplementasikan -- hanya jarak yg dicek.
+    if(!approachMomentumOk(m1, dir)){ setStatus(st, T.status.OBSERVE); return; }
 
     setStatus(st, T.status.DEVELOPING);
     st.activeSweep = evaluateSweep(null, level, dir, m1, st.atr, ticksize, SETTINGS);
@@ -826,12 +987,17 @@ function stepEngine(st, m1, m5, ticksize){
     st.activeSweep = evaluateSweep(st.activeSweep, st.activeSweep.level, st.activeSweep.dir, m1, st.atr, ticksize, SETTINGS);
     if(st.activeSweep.state==='VALID'){
       const dir0 = st.activeSweep.dir;
-      pushTimeline(st, `First sweep VALID (${dir0}) @ ${fmt(st.activeSweep.breachPrice,4)}`, 'ok');
-      st.sl = dir0==='above' ? st.activeSweep.breachPrice + st.atr*CFG.slBufferAtrMult
-                              : st.activeSweep.breachPrice - st.atr*CFG.slBufferAtrMult;
+      // V1.2.1 (audit C3): catat level ini sbg sudah tersapu, supaya §1a tidak memilihnya lagi.
+      st.sweptExternal[dir0].push(st.activeSweep.level);
+      if(st.sweptExternal[dir0].length>20) st.sweptExternal[dir0].shift();
+      pushTimeline(st, `First sweep VALID (${dir0}) @ ${fmt(st.activeSweep.breachPrice,4)}`, 'ok', last.t);
+      const slBuffer = Math.max(st.atr*CFG.slBufferAtrMult, ticksize*CFG.slBufferMinTicks);
+      st.sl = dir0==='above' ? st.activeSweep.breachPrice + slBuffer
+                              : st.activeSweep.breachPrice - slBuffer;
       st.tp = dir0==='above' ? st.externalLiquidity.below : st.externalLiquidity.above;
       setStatus(st, T.status.WAIT);
       st.postSweepSince = st.activeSweep.reclaimTs;
+      st.hypothesisSince = st.activeSweep.reclaimTs; // V1.2.1: jangkar kedaluwarsa hipotesis (lihat di bawah)
     }
     return;
   }
@@ -843,29 +1009,60 @@ function stepEngine(st, m1, m5, ticksize){
   // 2) Invalidasi: harga menembus SL setelah hipotesis terbentuk.
   //    dir='above' -> sweep di swing HIGH -> hipotesis BEARISH -> SL di ATAS -> invalid kalau harga naik lagi ke/lewat SL.
   //    dir='below' -> sweep di swing LOW  -> hipotesis BULLISH -> SL di BAWAH -> invalid kalau harga turun lagi ke/lewat SL.
-  if(st.sl!=null){
+  if(st.sl!=null && st.status!==T.status.CONFIRMED){
     const invalid = dir==='above' ? last.h >= st.sl : last.l <= st.sl;
-    if(invalid && st.status!==T.status.CONFIRMED){
-      pushTimeline(st, `INVALID — harga menembus SL @ ${fmt(st.sl,4)}`, 'inv');
+    if(invalid){
+      pushTimeline(st, `INVALID — harga menembus SL @ ${fmt(st.sl,4)}`, 'inv', last.t);
       resetHypothesis(st, false);
       setStatus(st, T.status.INVALID);
       return;
     }
   }
-  if(st.status===T.status.CONFIRMED) return; // sudah final, biarkan sampai reset manual/timeout besar
+
+  // V1.2.1 fix (audit C9): CONFIRMED dulu langsung "return" di sini dan MEMBEKU SELAMANYA -- SL/TP
+  // tak pernah dilacak, status tak pernah reset (bertahan lintas backfill/kalibrasi ulang walau
+  // sudah lama kena SL). Sekarang dipantau sampai TP/SL tersentuh atau time-stop, lalu direset
+  // otomatis ke OBSERVE (trade sudah selesai, bukan hipotesis lama yg dipertahankan).
+  if(st.status===T.status.CONFIRMED){
+    const hitSL = st.sl!=null && (dir==='above' ? last.h>=st.sl : last.l<=st.sl);
+    const hitTP = st.tp!=null && (dir==='above' ? last.l<=st.tp : last.h>=st.tp);
+    const ageMin = st.retest ? (last.t-st.retest.ts)/60000 : Infinity;
+    const timedOut = ageMin > CFG.tradeMaxAgeMinutes;
+    if(hitSL || hitTP || timedOut){
+      const outcome = hitSL ? 'SL tersentuh' : hitTP ? 'TP tersentuh' : 'time-stop';
+      pushTimeline(st, `Trade selesai — ${outcome} @ ${fmt(last.c,4)}`, hitTP?'ok':'inv', last.t);
+      resetHypothesis(st, false);
+      setStatus(st, T.status.OBSERVE);
+    }
+    return;
+  }
+
+  // V1.2.1 fix (audit A3): dulu WAIT tidak punya batas umur sama sekali -- second sweep bisa retry
+  // ratusan kali, MSS/FVG/retest bisa menunggu berjam-jam/berhari-hari tanpa gerbang kedaluwarsa
+  // (terbukti di backtest: macet WAITING 85-97% waktu). Satu batas umur dari first-sweep VALID
+  // membungkus SEMUA sub-fase sekaligus, jadi tidak perlu gerbang kedaluwarsa terpisah di tiap fase.
+  if(st.hypothesisSince!=null){
+    const ageMin = (last.t - st.hypothesisSince)/60000;
+    if(ageMin > CFG.hypothesisMaxAgeMinutes || st.secondSweepRetries > CFG.secondSweepMaxRetries){
+      pushTimeline(st, `EXPIRED — hipotesis basi (${ageMin>CFG.hypothesisMaxAgeMinutes?'>'+CFG.hypothesisMaxAgeMinutes+' menit':'terlalu banyak retry second sweep'}), reset`, 'inv', last.t);
+      resetHypothesis(st, false);
+      setStatus(st, T.status.INVALID);
+      return;
+    }
+  }
 
   // 3) Post-sweep behaviour
   if(!st.postSweepState){
     const cls = classifyPostSweep(m1, st.postSweepSince);
     if(cls==='continuation'){
-      pushTimeline(st, 'Post-sweep continuation — sweep dianulir, bukan reversal', 'inv');
+      pushTimeline(st, 'Post-sweep continuation — sweep dianulir, bukan reversal', 'inv', last.t);
       resetHypothesis(st, true); setStatus(st, T.status.DEVELOPING); return;
     }
-    if(cls){ st.postSweepState=cls; pushTimeline(st, `Post-sweep state: ${cls}`); }
+    if(cls){ st.postSweepState=cls; pushTimeline(st, `Post-sweep state: ${cls}`, '', last.t); }
     else return;
   }
 
-  // 4) Range + internal liquidity
+  // 4) Range + internal liquidity (SISI YANG SAMA dgn first sweep -- lihat catatan V1.2.1 di bawah)
   //    Dievaluasi dari jendela BERGULIR (candle terbaru), bukan menumpuk sejak reclaim -- kalau tidak,
   //    begitu displacement besar terjadi belakangan, lebar "range sejak reclaim" ikut melebar dan syarat
   //    rentang sempit tidak akan pernah terpenuhi lagi. `all` (menumpuk) hanya dipakai untuk cek timeout.
@@ -892,25 +1089,41 @@ function stepEngine(st, m1, m5, ticksize){
     if(win){
       const hi=Math.max(...win.map(c=>c.h)), lo=Math.min(...win.map(c=>c.l));
       st.range = { startTs:win[0].t, high:hi, low:lo };
-      const cluster = findEqualCluster(win, st.atr, dir==='above'?'below':'above');
+      // V1.2.1 fix (audit C5 -- yg paling kritis dari semua bug): dulu internal liquidity diambil
+      // dari SISI BERLAWANAN dgn first sweep (mis. first sweep di high/tesis bearish -> cari equal
+      // LOWS), lalu menuntut sapuan+reclaim+rejection wick BAWAH (sinyal BULLISH) di situ SEBELUM
+      // displacement BEARISH menembusnya lagi -- kontradiktif: menuntut sinyal berlawanan dgn tesis
+      // yg justru harus gagal sendiri sebelum tesis bisa lanjut (lihat blueprint/tinjauan §5).
+      // Sekarang internal liquidity di SISI YANG SAMA dgn first sweep (equal highs utk tesis
+      // bearish) -- pola "sapu inducement internal, tolak SEARAH tesis", konsisten dgn first sweep
+      // itu sendiri (sama2 sweep-highs-lalu-reject-turun). MSS di langkah 6 lalu menembus swing low
+      // yg SEBENARNYA (bukan cuma ekstrem second-sweep itu sendiri spt sebelumnya).
+      const cluster = findEqualCluster(win, st.atr, dir);
       if(cluster){
-        st.internalLiquidity = { price:cluster.price, density:cluster.density, dir: dir==='above'?'below':'above' };
-        pushTimeline(st, `Internal liquidity ${st.internalLiquidity.density} @ ${fmt(cluster.price,4)}`);
+        st.internalLiquidity = { price:cluster.price, density:cluster.density, dir: dir };
+        pushTimeline(st, `Internal liquidity ${st.internalLiquidity.density} @ ${fmt(cluster.price,4)}`, '', last.t);
+        // V1.2.1: jangkar kedaluwarsa DIGESER ke sini -- tiap fase (post-sweep+range, second-sweep,
+        // displacement/MSS/FVG/retest) dapat jatah waktu SENDIRI2 (§hypothesisMaxAgeMinutes) drpd
+        // berbagi satu anggaran waktu sejak first-sweep. Tanpa ini, fase belakangan (yg menunggu
+        // second sweep/FVG/retest) bisa keburu kedaluwarsa hanya krn fase SEBELUMNYA (range search)
+        // sudah memakai banyak waktu, padahal fase itu sendiri belum sempat dicoba sama sekali.
+        st.hypothesisSince = last.t;
       }
     }
     if(all.length > CFG.postSweepTimeout*2 && !st.internalLiquidity){
-      pushTimeline(st, 'Timeout — range/internal liquidity tak terbentuk, reset', 'inv');
+      pushTimeline(st, 'Timeout — range/internal liquidity tak terbentuk, reset', 'inv', last.t);
       resetHypothesis(st, true); setStatus(st, T.status.DEVELOPING); return;
     }
     if(!st.internalLiquidity) return;
   }
 
-  // 5) Second sweep (level = internal liquidity, arah berlawanan dgn first sweep)
+  // 5) Second sweep (level = internal liquidity, SEKARANG di sisi yg SAMA dgn first sweep)
   if(!st.secondSweep || st.secondSweep.state==='WAITING' || st.secondSweep.state==='PARTIAL'){
     st.secondSweep = evaluateSweep(st.secondSweep, st.internalLiquidity.price, st.internalLiquidity.dir,
       m1, st.atr, ticksize, SETTINGS);
     if(st.secondSweep.state==='FAILED'){
-      pushTimeline(st, 'Second sweep gagal — internal liquidity tak tersapu bersih, coba ulang', 'inv');
+      st.secondSweepRetries++;
+      pushTimeline(st, 'Second sweep gagal — internal liquidity tak tersapu bersih, coba ulang', 'inv', last.t);
       st.secondSweep=null; return;
     }
     if(st.secondSweep.state==='VALID'){
@@ -920,10 +1133,15 @@ function stepEngine(st, m1, m5, ticksize){
         // ataupun masuk cabang ini lagi, jadi cek wick ini keliru cuma berlaku sekali lalu
         // otomatis "lolos" diam-diam ke Displacement di langkah sesudahnya. Reset ke null
         // memberi kesempatan mencari sapuan BARU pada level yg sama dgn wick rejection bersih.
-        pushTimeline(st, 'Second sweep breach+reclaim tapi wick rejection tipis — dicoba ulang', 'inv');
+        st.secondSweepRetries++;
+        pushTimeline(st, 'Second sweep breach+reclaim tapi wick rejection tipis — dicoba ulang', 'inv', last.t);
         st.secondSweep = null; return;
       }
-      pushTimeline(st, `SECOND SWEEP CONFIRMED @ ${fmt(st.secondSweep.breachPrice,4)}`, 'ok');
+      pushTimeline(st, `SECOND SWEEP CONFIRMED @ ${fmt(st.secondSweep.breachPrice,4)}`, 'ok', last.t);
+      // V1.2.1: geser jangkar kedaluwarsa -- fase Displacement/MSS dapat jatah waktu sendiri
+      // dihitung dari SINI (lihat catatan lengkap soal SL/TP di blok MSS-confirmed di bawah --
+      // pengetatan SL SENGAJA ditunda sampai MSS, bukan di sini, lihat alasannya di sana).
+      st.hypothesisSince = last.t;
     } else return;
   }
   if(!st.secondSweep || st.secondSweep.state!=='VALID') return;
@@ -937,38 +1155,96 @@ function stepEngine(st, m1, m5, ticksize){
   //    mssSearchFrom sbg kursor yg maju tiap kandidat gagal, kandidat berikutnya tetap dicoba.
   if(!st.mss){
     const searchFrom = st.mssSearchFrom || st.secondSweep.reclaimTs || st.secondSweep.breachTs;
-    const disp = findDisplacement(m1, st.atr, dir, searchFrom, SETTINGS);
+    const disp = findDisplacement(m1, atrSeries, dir, searchFrom, SETTINGS);
     if(disp){
       const mss = findMSS(m1, disp.ts, dir, SETTINGS);
       if(mss){
         st.displacement = disp; st.mss = mss;
-        pushTimeline(st, `Displacement candle terdeteksi (${dir})`, 'ok');
-        pushTimeline(st, `MSS/CHOCH tervalidasi — struktur tertembus @ ${fmt(mss.level,4)}`, 'ok');
+        pushTimeline(st, `Displacement candle terdeteksi (${dir})`, 'ok', last.t);
+        pushTimeline(st, `MSS/CHOCH tervalidasi — struktur tertembus @ ${fmt(mss.level,4)}`, 'ok', last.t);
+        // V1.2.1 fix (audit C8 / tinjauan "Peta risiko rusak"): SL/TP dulu dibekukan sejak first-sweep
+        // VALID, padahal entry baru terjadi jauh setelahnya (median R:R saat CONFIRMED cuma ~0.2-0.5 di
+        // backtest). Ditunda sampai MSS (bukan langsung di second-sweep-confirmed) krn dicoba di situ
+        // dulu -- SL yg langsung diperketat ke ekstrem second sweep kena tersentuh oleh noise wick M1
+        // dalam hitungan menit pada 6/8 kasus backtest, SEBELUM displacement sempat terjadi (structure
+        // belum benar2 patah). Menunggu sampai MSS berarti fase second-sweep->displacement tetap pakai
+        // SL lebar (first sweep) apa adanya, dan SL BARU diperketat begitu structure break sungguhan
+        // sudah terkonfirmasi. Level protect = ekstrem TERJAUH sejak second sweep breach SAMPAI SEKARANG
+        // (bukan cuma breachPrice second sweep sendiri) -- supaya wick apa pun yg terjadi di sepanjang
+        // jendela itu (sebelum SL diperketat) tetap terlindungi begitu SL akhirnya diperketat.
+        const sinceSecond = m1.filter(c=>c.t>=st.secondSweep.breachTs);
+        const extremeSinceSecond = dir==='above' ? Math.max(...sinceSecond.map(c=>c.h)) : Math.min(...sinceSecond.map(c=>c.l));
+        const slBuffer2 = Math.max(st.atr*CFG.slBufferAtrMult, ticksize*CFG.slBufferMinTicks);
+        st.sl = dir==='above' ? extremeSinceSecond + slBuffer2 : extremeSinceSecond - slBuffer2;
+        // Segarkan TP dari liquidity eksternal lawan TERKINI (bukan snapshot lama saat first sweep)
+        // selama levelnya masih di depan harga.
+        const swFresh = computeSwings(m5.slice(-CFG.liquidityLookback), CFG.fractalL);
+        const oppType = dir==='above' ? 'low' : 'high';
+        const oppFresh = swFresh.filter(s=>s.type===oppType);
+        if(oppFresh.length){
+          const oppCand = oppFresh[oppFresh.length-1].price;
+          const stillAhead = dir==='above' ? oppCand < last.c : oppCand > last.c;
+          if(stillAhead) st.tp = oppCand;
+        }
+        // Jatah waktu baru utk fase FVG + Retest, dihitung dari MSS (bukan dari second sweep).
+        st.hypothesisSince = last.t;
       } else {
-        st.mssSearchFrom = disp.ts + 1; // kandidat ini tak berujung MSS -- coba kandidat SETELAHNYA
+        // V1.2.1 fix (audit A4, off-by-one): dulu `disp.ts + 1` membuat candle TEPAT SETELAH
+        // kandidat yg gagal tidak pernah diuji sbg kandidat baru (cuma dipakai sbg 'prev' di
+        // findDisplacement, tidak pernah jadi `c`). Tanpa +1, candle yg gagal sendiri kembali jadi
+        // 'prev' (spt semula) dan candle setelahnya baru yg diuji sbg kandidat.
+        st.mssSearchFrom = disp.ts;
       }
     }
     if(!st.mss) return;
   }
   if(!st.fvg){
-    st.fvg = findFVG(m1, st.mss.ts, dir, st.atr);
-    if(st.fvg) pushTimeline(st, `FVG terbentuk ${fmt(st.fvg.bottom,4)}–${fmt(st.fvg.top,4)}`, 'ok');
+    st.fvg = findFVG(m1, atrSeries, st.mss.ts, dir, st.fvgSearchFrom);
+    if(st.fvg) pushTimeline(st, `FVG terbentuk ${fmt(st.fvg.bottom,4)}–${fmt(st.fvg.top,4)}`, 'ok', last.t);
     else return;
   }
   if(!st.retest){
-    st.retest = checkRetest(m1, st.fvg, st.mss.ts);
+    st.retest = checkRetest(m1, st.fvg, st.fvg.ts);
     if(st.retest && st.retest.rejected){
-      pushTimeline(st, 'RETEST tertolak — SETUP CONFIRMED', 'ok');
-      setStatus(st, T.status.CONFIRMED);
       const entry = last.c;
-      st.rr = st.sl!=null && st.tp!=null ? Math.abs(st.tp-entry)/Math.max(Math.abs(entry-st.sl),1e-9) : null;
+      // V1.2.1 fix (audit C8): dulu R:R pakai Math.abs shg TP di sisi SALAH tetap tampil positif,
+      // dan tidak ada gerbang R:R minimum. Sekarang R:R terarah (negatif kalau TP salah sisi) dan
+      // CONFIRMED disyaratkan R:R >= minRR -- kalau tidak, retest yg valid tetap TIDAK menghasilkan
+      // sinyal (hipotesis dianggap tidak layak dagang, dicari ulang, bukan dipaksakan CONFIRMED).
+      const rr = computeRR(st.tp, entry, st.sl, dir);
+      if(rr==null || rr < CFG.minRR){
+        pushTimeline(st, `Retest tertolak tapi R:R tidak memadai (${rr==null?'TP tidak valid':fmt(rr,2)}) — dibatalkan`, 'inv', last.t);
+        resetHypothesis(st, true);
+        setStatus(st, T.status.DEVELOPING);
+      } else {
+        pushTimeline(st, `RETEST tertolak — SETUP CONFIRMED (R:R ${fmt(rr,2)})`, 'ok', last.t);
+        setStatus(st, T.status.CONFIRMED);
+        st.rr = rr;
+      }
+    } else if(st.retest && st.retest.expired){
+      // V1.2.1 fix (audit C6/C7): FVG yg sudah terisi >50% atau retest yg tak kunjung terjadi dalam
+      // retestWindow dulu tidak pernah dianulir. Sekarang FVG ini dibuang -- findFVG akan mencari
+      // gap lain (kalau ada, dlm sisa jendela fvgMaxSearchCandles) sebelum kedaluwarsa hipotesis
+      // keseluruhan tercapai.
+      pushTimeline(st, `Retest gagal (${st.retest.expired==='filled'?'FVG sudah terisi >50%':'timeout retest'}) — mencari FVG baru`, 'inv', last.t);
+      // V1.2.1: majukan kursor fvgSearchFrom ke gap yg baru ditolak ini -- tanpa ini findFVG akan
+      // menemukan gap yg SAMA PERSIS lagi di langkah berikutnya (deterministik utk input yg sama)
+      // dan retest-nya akan langsung "sudah terisi" lagi, jadi loop tanpa akhir (bug ditemukan
+      // sendiri saat verifikasi backtest -- lihat catatan di findFVG).
+      st.fvgSearchFrom = st.fvg.ts;
+      st.fvg = null; st.retest = null;
     }
   }
 }
 
 function readiness(st){
-  const liq = ( (st.activeSweep?1:0) + (st.activeSweep && st.activeSweep.state==='VALID'?1:0)
-    + (st.secondSweep && st.secondSweep.state==='VALID'?1:0) ) / 3;
+  // V1.2.1 fix: suku pertama dulu `st.activeSweep?1:0` -- menghitung SEMUA state (termasuk FAILED)
+  // sbg progres. Sweep yg sudah gagal bukan progres; hanya WAITING/PARTIAL (sedang mendekat/diuji)
+  // atau VALID yg pantas dihitung.
+  const approaching = !!(st.activeSweep && st.activeSweep.state!=='FAILED');
+  const sweepValid = !!(st.activeSweep && st.activeSweep.state==='VALID');
+  const secondValid = !!(st.secondSweep && st.secondSweep.state==='VALID');
+  const liq = ( (approaching?1:0) + (sweepValid?1:0) + (secondValid?1:0) ) / 3;
   const structure = ( (st.range?1:0) + (st.internalLiquidity?1:0) ) / 2;
   const displacement = st.displacement?1:0;
   const mss = st.mss?1:0;
@@ -1089,13 +1365,23 @@ function recompute(app){
 // -- termasuk kalau menurut mesin sebuah hipotesis sudah CONFIRMED lalu ter-INVALID lagi, dst.
 // State lama SENGAJA dibuang (bukan disambung) supaya hasilnya deterministik & konsisten dgn
 // "seolah menyaksikan dari awal", bukan tercampur residu proses sebelumnya.
+// V1.2.1 fix (audit A6/C2, 2 bug lookahead sekaligus):
+// (1) Dulu pakai .series() (candle TERTUTUP + `cur` yg masih terbentuk) -- langkah TERAKHIR replay
+//     jadi mengevaluasi candle yg belum closed spt candle biasa, lalu candle itu dievaluasi LAGI
+//     saat benar-benar closed (mirip bug duplikat di makeAggregator.push). Sekarang pakai `.closed`
+//     (array candle yg SUDAH tertutup saja) utk m1 & m5.
+// (2) Dulu syarat "M5 sudah tersedia" cuma `m5[m5i].t <= t` (waktu BUKA candle M5 <= waktu buka
+//     candle M1 ini) -- itu bisa berarti candle M5 itu SENDIRI masih terbentuk (candle M5 yg
+//     dimulai jam yg sama dgn candle M1 ke-3/ke-4 di dalamnya belum tentu sudah closed). Sekarang
+//     syaratnya candle M5 itu sudah CLOSED sebelum/tepat saat candle M1 ini closed:
+//     waktu-tutup-M5 (t+300000) <= waktu-tutup-M1-ini (t+60000).
 function replayHistory(app){
-  const m1 = app.m1Agg.series(), m5 = app.m5Agg.series(), tickSize = tickSizeFor(app);
+  const m1 = app.m1Agg.closed, m5 = app.m5Agg.closed, tickSize = tickSizeFor(app);
   app.engine = newEngineState(app.asset);
   let m5i = 0;
   for(let i=0;i<m1.length;i++){
     const t = m1[i].t;
-    while(m5i<m5.length && m5[m5i].t<=t) m5i++;
+    while(m5i<m5.length && (m5[m5i].t+300000)<=(t+60000)) m5i++;
     stepEngine(app.engine, m1.slice(0,i+1), m5.slice(0,m5i), tickSize);
   }
 }
