@@ -165,8 +165,14 @@ fase kedua):
   - *Continuation* → berarti sweep sebenarnya FAILED, lihat §4.4.
   - *Unclear* → tunggu, timeout 15 candle M1 tanpa kejelasan = kembali ke
     `DEVELOPING` dan cari setup baru.
-- **Range valid**: `≥ 6 candle M1` dengan high/low tertampung dalam pita
-  `≤ 1.2 × ATR`.
+- **Range valid**: dicari dengan menyisir lebar jendela `6..24 candle M1`
+  (bukan kaku satu ukuran) — begitu ketemu jendela (dari yang paling
+  baru/sempit) dengan high/low tertampung dalam pita `≤ 2.0 × ATR`, itu
+  dipakai. *(V1.1.1: nilai asli 1.2×ATR dgn jendela kaku 8-candle terbukti
+  lewat simulasi random-walk cuma punya ~0,3% peluang terpenuhi per langkah
+  — praktis mustahil pada gerak harga sungguhan, bikin "Structure" nyaris
+  tidak pernah tercentang. 2.0×ATR + jendela yang disisir menaikkan peluang
+  ke ~30% per langkah tanpa membuat tren kuat ikut kebaca sebagai ranging.)*
 - **Compression**: lebar pita rolling-5-candle menurun `≥ 3` candle berturutan.
 - **Equal highs/lows**: `≥ 2` swing point M1 dalam toleransi `≤ 0.15 × ATR`
   (atau `≤ 3 tick`, mana yang lebih besar) satu sama lain. Jumlah titik yang

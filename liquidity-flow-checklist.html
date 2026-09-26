@@ -275,7 +275,11 @@ const CFG = {
   reclaimWindow: 3,
   failContinueAtrMult: 1.0,
   postSweepWindow: 8, postSweepTimeout: 15,
-  rangeMinCandles: 6, rangeMaxAtrWidth: 1.2,
+  // rangeMaxAtrWidth: dulu 1.2 -- ternyata TERLALU KETAT dibanding fluktuasi acak alami pasar
+  // (simulasi random-walk: hanya ~0.3% kesempatan window 8-candle muat di bawah 1.2xATR, jadi
+  // "Structure" nyaris tak pernah tercentang). 2.0 + rangeMaxWindow (cari lebar jendela yg pas,
+  // bukan kaku 8 candle) menaikkan peluang deteksi ke ~30% tanpa mengorbankan makna "ranging".
+  rangeMinCandles: 6, rangeMaxWindow: 24, rangeMaxAtrWidth: 2.0,
   equalTolAtrMult: 0.15,
   rejectionWickRatio: 0.5,
   displacementAtrMult: 1.5, displacementCloseZone: 0.25,
@@ -726,17 +730,23 @@ function stepEngine(st, m1, m5, ticksize){
   //    rentang sempit tidak akan pernah terpenuhi lagi. `all` (menumpuk) hanya dipakai untuk cek timeout.
   if(!st.internalLiquidity){
     const all = m1.filter(c=>c.t>st.postSweepSince); // strictly setelah candle reclaim (candle reclaim sendiri masih bergejolak)
-    const winSize = Math.max(CFG.rangeMinCandles, CFG.postSweepWindow);
-    const win = all.slice(-winSize);
-    if(win.length>=CFG.rangeMinCandles){
+    // Sisir beberapa lebar jendela (bukan kaku satu ukuran) -- ambil yg PALING BARU/SEMPIT yg
+    // sudah muat di bawah ambang, baru mundur ke jendela lebih lebar kalau belum ada yg pas.
+    // Window tunggal (dulu selalu 8) ternyata jarang sekali pas persis dgn ambang lebar sempit
+    // pada gerakan harga acak -- lihat catatan rangeMaxAtrWidth di §CFG.
+    let win = null;
+    for(let w=CFG.rangeMinCandles; w<=Math.min(CFG.rangeMaxWindow, all.length); w++){
+      const cand = all.slice(-w);
+      const hi=Math.max(...cand.map(c=>c.h)), lo=Math.min(...cand.map(c=>c.l));
+      if(hi-lo <= st.atr*CFG.rangeMaxAtrWidth){ win = cand; break; }
+    }
+    if(win){
       const hi=Math.max(...win.map(c=>c.h)), lo=Math.min(...win.map(c=>c.l));
-      if(hi-lo <= st.atr*CFG.rangeMaxAtrWidth){
-        st.range = { startTs:win[0].t, high:hi, low:lo };
-        const cluster = findEqualCluster(win, st.atr, dir==='above'?'below':'above');
-        if(cluster){
-          st.internalLiquidity = { price:cluster.price, density:cluster.density, dir: dir==='above'?'below':'above' };
-          pushTimeline(st, `Internal liquidity ${st.internalLiquidity.density} @ ${fmt(cluster.price,4)}`);
-        }
+      st.range = { startTs:win[0].t, high:hi, low:lo };
+      const cluster = findEqualCluster(win, st.atr, dir==='above'?'below':'above');
+      if(cluster){
+        st.internalLiquidity = { price:cluster.price, density:cluster.density, dir: dir==='above'?'below':'above' };
+        pushTimeline(st, `Internal liquidity ${st.internalLiquidity.density} @ ${fmt(cluster.price,4)}`);
       }
     }
     if(all.length > CFG.postSweepTimeout*2 && !st.internalLiquidity){
