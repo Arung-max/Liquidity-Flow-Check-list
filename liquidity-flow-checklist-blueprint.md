@@ -301,14 +301,23 @@ menjawab atau format request meleset, jalur live (spot+depth) tetap jalan
 normal — `ERROR_RES` hanya dianggap gagal-histori (bukan mematikan status
 LIVE) selama masih ada permintaan histori yang menunggu balasan.
 
-**Sudah diuji** end-to-end lewat `mock-ctrader.mjs` (server broker tiruan
-juga diperluas untuk membalas trendbar sintetis) — protokol klien↔bridge↔mock
-terbukti nyambung. **Belum diuji** terhadap server cTrader sungguhan (nama
-field & format enum `period` diambil dari dokumentasi/memori, bukan hasil
-observasi langsung) — kemungkinan perlu penyesuaian kecil begitu dicoba saat
-market buka dengan akun broker asli. Kalau ada `ERROR_RES` utk histori, cek
-log bridge (`Histori M1 gagal -> ...`) untuk detail errorCode/description
-dari broker.
+Kedua period (M1, M5) diminta **satu per satu** (M5 baru dikirim setelah
+balasan M1 diterima/gagal), bukan sekaligus — cTrader terbukti **tidak**
+menjamin urutan balasan sama dengan urutan permintaan kalau dua
+`GetTrendbarsReq` dikirim beruntun tanpa menunggu (ditemukan lewat pengujian
+sungguhan: balasan M5 datang lebih dulu padahal M1 diminta duluan, sehingga
+kalau dipasangkan lewat antrean FIFO datanya salah label — M1 dan M5 tertukar).
+Dengan cuma satu request "in-flight" per adapter, balasan yang datang dijamin
+milik request yang sedang ditunggu, tidak ada lagi ambiguitas.
+
+**Sudah diuji end-to-end dua kali:** lewat `mock-ctrader.mjs` (server broker
+tiruan, trendbar sintetis) dan **lewat server cTrader demo sungguhan**
+(akun Spotware demo asli) — 8 dari 9 pair (semua kecuali satu kasus timeout
+depth-of-market yang tidak terkait histori) berhasil LIVE + menerima histori
+M1 180 candle & M5 200 candle dengan benar, nol `ERROR_RES`. Nama field
+trendbar (`low`, `deltaOpen/High/Close`, `utcTimestampInMinutes`, `volume`)
+dan format `period` sebagai string ("M1"/"M5") terbukti benar sesuai
+dokumentasi resmi cTrader.
 
 ---
 
