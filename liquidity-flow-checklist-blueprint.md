@@ -1,4 +1,4 @@
-# Liquidity Flow Checklist — Blueprint V1.1
+# Liquidity Flow Checklist — Blueprint V1.2
 
 > V1.0 adalah konsep & mockup ASCII. V1.1 ini mengisi setiap celah yang membuat
 > V1.0 tidak bisa langsung dikodekan: ambang angka, urutan gate yang tidak
@@ -144,8 +144,17 @@ dipilih agar noise minor tidak lolos jadi "sinyal".
 Diberi level target `L` (external di fase pertama, internal equal-high/low di
 fase kedua):
 - **Breach**: high/low candle menembus `L` sejauh `≥ max(2 tick, 0.05×ATR)`.
-- **Reclaim**: dalam `≤ 3 candle M1` setelah breach, ada **close** yang balik
-  ke sisi dalam `L` → status `VALID`.
+- **Reclaim**: dalam `N candle M1` setelah breach (default `3`, **kalibratable**
+  1–4 lewat panel — §8 "Reclaim"), ada **close** yang balik ke sisi dalam `L`
+  → dicek dulu terhadap Sweep Depth (di bawah) sebelum jadi `VALID`.
+- **Sweep Depth** *(V1.2, baru)*: kedalaman TERJAUH yang pernah dicapai sejak
+  breach (bukan cuma titik breach pertama — harga bisa terus menembus lebih
+  jauh sebelum akhirnya reclaim) harus berada dalam rentang
+  `[min, max]` — default `0.5×ATR – 2.0×ATR`, atau mode poin harga langsung
+  `1.0 – 15 poin` (kalibratable, §8). Di bawah minimum → dianggap breach
+  terlalu dangkal (noise, bukan sapuan sungguhan), sapuan dianulir. Di atas
+  maksimum → dianggap sudah jadi breakout (bukan sweep lagi), langsung
+  `FAILED` walau belum sempat reclaim.
 - **Rejection wick** (disyaratkan khusus di Second Sweep, karena ini satu-
   satunya konfirmasi yang sahih tanpa tape nyata): candle breach punya wick ke
   arah breach `≥ 50%` dari total range candle itu.
@@ -165,9 +174,10 @@ fase kedua):
   - *Continuation* → berarti sweep sebenarnya FAILED, lihat §4.4.
   - *Unclear* → tunggu, timeout 15 candle M1 tanpa kejelasan = kembali ke
     `DEVELOPING` dan cari setup baru.
-- **Range valid**: dicari dengan menyisir lebar jendela `24..6 candle M1`
-  dari yang **TERBESAR ke TERKECIL** (bukan kaku satu ukuran) — begitu ketemu
-  jendela dengan high/low tertampung dalam pita `≤ 2.0 × ATR`, itu dipakai
+- **Range valid**: dicari dengan menyisir lebar jendela `Maks..Min candle M1`
+  (default `24..6`, **kalibratable** lewat panel — §8 "Range") dari yang
+  **TERBESAR ke TERKECIL** (bukan kaku satu ukuran) — begitu ketemu jendela
+  dengan high/low tertampung dalam pita `≤ 2.0 × ATR` (kalibratable), itu dipakai
   (jendela terbesar yang masih sah, memberi paling banyak kandidat titik
   swing utk §"Equal highs/lows" di bawah — lebar range monoton melebar
   seiring jendela membesar, jadi kalau jendela kecil sudah tidak muat,
@@ -179,7 +189,13 @@ fase kedua):
   ke ~30%, tapi jendela kecil yang kepilih nyaris tidak pernah punya cukup
   titik swing utk "Equal highs/lows" (lihat catatan di situ) — makanya
   Second Sweep dst. tetap 0% sampai arah pencarian dibalik ke TERBESAR.)*
-- **Compression**: lebar pita rolling-5-candle menurun `≥ 3` candle berturutan.
+- **Compression** *(V1.2: sebelumnya cuma disebut di V1.0, sekarang benar-benar
+  diimplementasikan)*: ATR saat ini `< X%` dari ATR pada saat fase pencarian
+  range ini pertama dimulai (jangkar diambil sekali, bukan bergerak tiap
+  langkah) — default `X=70` (kalibratable, bisa dimatikan, §8 "Compression").
+  **Bukan gerbang wajib** — cuma tanda tambahan di checklist ("Compression
+  (ATR menyempit)") yang menunjukkan tekanan menyempit sebelum ekspansi;
+  tidak memblokir progres ke Second Sweep kalau tidak terpenuhi.
 - **Equal highs/lows**: `≥ 2` swing point M1 dalam toleransi `≤ 0.3 × ATR`
   (atau `≤ 3 tick`, mana yang lebih besar) satu sama lain, dicari di dalam
   jendela range §4.5 di atas. Jumlah titik yang berkumpul = **Liquidity
@@ -210,17 +226,28 @@ sebagian kasus lolos ke Displacement tanpa rejection wick yang sah. Sesudah
 diperbaiki, kedua angka itu identik.)*
 
 ### 4.7 Displacement & MSS/CHOCH
-- **Displacement valid**:
-  `|close−open| ≥ 1.5 × ATR` **dan** close berada di 25% terluar range candle
-  (searah pergerakan) **dan** body-nya lebih besar dari 2 candle sebelumnya.
-  Ini mencegah satu wick liar dibaca sebagai displacement (prinsip "satu
-  candle tidak menentukan").
-- **MSS/CHOCH valid**: **close** (bukan wick) dari candle displacement yang
-  sama menembus swing point M1 tervalidasi (fractal L=2) yang paling relevan
-  ke arah hipotesis, dan gate §4.6 sudah `CONFIRMED` sebelum ini dievaluasi.
-  Kalau kandidat displacement yang ditemukan **tidak** berhasil menembus
-  struktur (MSS gagal), mesin mencoba **kandidat displacement berikutnya**
-  yang muncul kemudian — bukan berhenti selamanya di kandidat pertama.
+- **Displacement valid** — dua mode (**kalibratable**, §8 "Displacement"):
+  - Mode **Relatif ATR** (default): `|close−open| ≥ 1.5 × ATR` **dan** body-nya
+    lebih besar dari candle sebelumnya.
+  - Mode **Relatif median body**: `|close−open| ≥ 1.2 × median body` dari 10
+    candle terakhir sebelum candle ini — berguna di sesi low-volatility di
+    mana ATR global belum "sadar" sebuah gerakan sudah relatif besar.
+  - Kedua mode tetap mensyaratkan close berada di 25% terluar range candle
+    (searah pergerakan) — mencegah satu wick liar dibaca sebagai displacement
+    (prinsip "satu candle tidak menentukan").
+- **MSS/CHOCH valid** — dua mode (**kalibratable**, §8 "MSS/CHOCH"):
+  - **Wajib close tembus struktur** (default, direkomendasikan): **close**
+    (bukan wick) dari candle displacement menembus swing point M1 tervalidasi
+    (fractal L=2) yang paling relevan ke arah hipotesis. *Wick Break ≠
+    Structure Break* — wick sesaat yang langsung ditarik balik TIDAK dianggap
+    tembus struktur, supaya sinyal palsu dari wick sekilas tidak lolos.
+  - **Wick cukup** (opsional, lebih cepat tapi lebih rawan sinyal palsu):
+    high/low candle displacement menembus swing point, close boleh balik ke
+    sisi semula.
+  - Gate §4.6 harus `CONFIRMED` sebelum ini dievaluasi. Kalau kandidat
+    displacement yang ditemukan **tidak** berhasil menembus struktur (MSS
+    gagal), mesin mencoba **kandidat displacement berikutnya** yang muncul
+    kemudian — bukan berhenti selamanya di kandidat pertama.
   *(V1.1.1: sebelumnya begitu satu candle displacement "dikunci" ke state,
   MSS dicek SEKALI utk candle itu saja; kalau gagal, `findMSS` dipanggil
   ulang tiap langkah tapi dengan input yang PERSIS SAMA (titik jangkarnya
@@ -428,3 +455,47 @@ sweep yang valid — persis riwayat yang sesungguhnya terjadi di histori.
   akan menambah akurasi untuk kripto (yang punya book asli), tapi bukan
   syarat karena mesin ini dirancang generik lintas 12 pair.
 - Alert suara/notifikasi push saat status naik ke WAIT/CONFIRMED.
+
+## 8. Panel Kalibrasi (V1.2, baru)
+
+Tombol **"⚙ Kalibrasi"** di topbar membuka panel yang mengubah parameter
+mesin **tanpa perlu edit kode**. Ini melengkapi janji di §4 ("Semua ambang di
+bawah dapat diubah lewat panel Pengaturan") yang sebelumnya baru berupa
+komentar di kode, belum ada UI-nya.
+
+**Enam grup parameter** (nilai default = angka yang dipakai di seluruh §4 di
+atas):
+
+| Grup | Field | Default |
+|---|---|---|
+| Sweep Depth | Mode | Relatif ATR |
+| | Minimum / Maksimum (× ATR) | 0.5 / 2.0 |
+| | Minimum / Maksimum (poin harga) | 1.0 / 15 |
+| Reclaim | Maksimum candle | 3 (pilihan 1–4) |
+| Range | Minimum / Maksimum candle | 6 / 24 |
+| | Lebar maksimum (× ATR) | 2.0 |
+| Compression | Aktifkan | ya |
+| | ATR sekarang < X% ATR sebelumnya | 70 |
+| Displacement | Mode | Relatif ATR |
+| | Badan ≥ (× ATR atau × median body) | 1.5 / 1.2 |
+| MSS / CHOCH | Wajib close tembus struktur | ya (Wick Break ≠ Structure Break) |
+
+**Cara kerja**:
+- Perubahan di form ditampung di draft terpisah — belum berlaku ke mesin
+  sampai **"Terapkan & Hitung Ulang Semua"** ditekan. Menutup panel tanpa
+  menekan tombol itu = batal, tidak ada efek.
+- Toggle mode (Sweep Depth ATR/Poin, Displacement ATR/Median Body) langsung
+  menukar field yang relevan di form (field yang tidak relevan disembunyikan).
+- Begitu "Terapkan" ditekan: nilai disimpan ke `localStorage` (bertahan lintas
+  buka-tutup browser), lalu **seluruh histori tiap pair yang sudah masuk
+  di-replay ulang** dari awal lewat `stepEngine` yang sama persis (mekanisme
+  yang sama dengan backfill historis di §6.4) — supaya kalibrasi baru
+  langsung tercermin di status/timeline/checklist saat ini, bukan cuma
+  berlaku ke candle baru ke depan.
+- **"Kembalikan ke Default"** mengisi ulang form ke nilai pabrik (tabel di
+  atas); masih perlu "Terapkan" untuk benar-benar berlaku.
+
+**Catatan desain**: Sweep Depth (min & max) diterapkan ke kedua sapuan
+(First **dan** Second Sweep — §4.4 pakai rumus yang sama untuk keduanya).
+Reclaim, Range, dan Compression secara alami hanya relevan untuk fase
+tertentu (First Sweep, pembentukan range, dan indikator pasca-range).

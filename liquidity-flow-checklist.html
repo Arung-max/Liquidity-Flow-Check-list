@@ -180,6 +180,28 @@
     padding:8px 10px;font-size:11px;margin-top:10px;}
   .footer-note{padding:8px 16px;color:var(--mut2);font-size:10.5px;border-top:1px solid var(--line);
     background:var(--panel);}
+
+  .modal-overlay{position:fixed;inset:0;background:rgba(4,6,9,.72);backdrop-filter:blur(3px);
+    display:flex;align-items:center;justify-content:center;z-index:50;padding:24px;
+    animation:appIn .25s var(--ease-pop) both;}
+  .modal-panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
+    border-radius:var(--radius);box-shadow:var(--shadow-card);width:min(640px,100%);max-height:88vh;
+    display:flex;flex-direction:column;overflow:hidden;}
+  .modal-hd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;
+    border-bottom:1px solid var(--line);}
+  .modal-hd h2{margin:0;font-size:14px;font-weight:700;}
+  .modal-body{padding:16px 18px;overflow-y:auto;flex:1;}
+  .modal-ft{display:flex;align-items:center;gap:10px;padding:14px 18px;border-top:1px solid var(--line);}
+  .modal-ft .spacer{flex:1;}
+  .setting-group{margin-bottom:16px;padding-bottom:14px;border-bottom:1px dashed var(--line-soft);}
+  .setting-group:last-child{border-bottom:none;margin-bottom:0;}
+  .setting-group h4{margin:0 0 4px;font-size:12px;color:var(--text);font-weight:700;}
+  .setting-group .desc{color:var(--mut);font-size:11px;margin-bottom:8px;line-height:1.4;}
+  .setting-row{display:flex;align-items:center;gap:10px;padding:4px 0;font-size:12px;}
+  .setting-row label{flex:0 0 220px;color:var(--mut);}
+  .setting-row input[type="number"],.setting-row select{background:var(--panel3);border:1px solid var(--line);
+    color:var(--text);padding:5px 8px;border-radius:6px;font:12px var(--mono);width:140px;}
+  .setting-row input[type="checkbox"]{width:16px;height:16px;accent-color:var(--blue);}
   @media (max-width:1000px){ .detail{grid-template-columns:1fr;} .scanner{width:280px;flex:0 0 280px;} }
   @media (max-width:760px){
     .layout{flex-direction:column;}
@@ -206,6 +228,7 @@
       </select>
     </div>
     <button class="btn primary" id="btnReconnectAll">Sambungkan Semua</button>
+    <button class="btn" id="btnCalibration">⚙ Kalibrasi</button>
     <div class="spacer"></div>
     <div class="field" id="globalStatus" style="color:var(--mut)">Belum tersambung</div>
   </div>
@@ -222,6 +245,21 @@
     Alat bantu baca struktur likuiditas — bukan sinyal beli/jual otomatis dan bukan nasihat investasi.
     Selalu gunakan manajemen risiko Anda sendiri. Data pasar OTC (forex/emas/indeks) berasal dari satu
     broker, bukan buku pasar terpusat.
+  </div>
+</div>
+
+<div class="modal-overlay" id="settingsOverlay" style="display:none">
+  <div class="modal-panel">
+    <div class="modal-hd">
+      <h2>Kalibrasi Parameter Mesin</h2>
+      <button class="btn" id="btnCloseSettings">✕</button>
+    </div>
+    <div class="modal-body" id="settingsBody"></div>
+    <div class="modal-ft">
+      <button class="btn" id="btnResetSettings">Kembalikan ke Default</button>
+      <div class="spacer"></div>
+      <button class="btn primary" id="btnApplySettings">Terapkan &amp; Hitung Ulang Semua</button>
+    </div>
   </div>
 </div>
 
@@ -272,20 +310,14 @@ const CFG = {
   erPeriod: 20, erTrendMin: 0.4,
   approachAtrMult: 1.5,
   breachMinAtrMult: 0.05, breachMinTicks: 2,
-  reclaimWindow: 3,
   failContinueAtrMult: 1.0,
   postSweepWindow: 8, postSweepTimeout: 15,
-  // rangeMaxAtrWidth: dulu 1.2 -- ternyata TERLALU KETAT dibanding fluktuasi acak alami pasar
-  // (simulasi random-walk: hanya ~0.3% kesempatan window 8-candle muat di bawah 1.2xATR, jadi
-  // "Structure" nyaris tak pernah tercentang). 2.0 + rangeMaxWindow (cari lebar jendela yg pas,
-  // bukan kaku 8 candle) menaikkan peluang deteksi ke ~30% tanpa mengorbankan makna "ranging".
-  rangeMinCandles: 6, rangeMaxWindow: 24, rangeMaxAtrWidth: 2.0,
   // equalTolAtrMult: dulu 0.15 -- simulasi menunjukkan pada window kecil (tempat pencarian range
   // dulu berhenti, lihat catatan di §5) nyaris tak pernah ada 2 swing sedekat itu. 0.3 + window
   // yg lebih besar (lihat §5) menaikkan peluang deteksi tanpa membuat "equal" jadi terlalu longgar.
   equalTolAtrMult: 0.3,
   rejectionWickRatio: 0.5,
-  displacementAtrMult: 1.5, displacementCloseZone: 0.25,
+  displacementCloseZone: 0.25,
   fvgMinAtrMult: 0.2, fvgFillPct: 0.5,
   retestWindow: 3, retestWickRatio: 0.4,
   slBufferAtrMult: 0.1,
@@ -302,6 +334,77 @@ const T = {
     INVALID:'Hipotesis sebelumnya gagal — mencari setup baru.',
   },
 };
+
+// Parameter yg BISA dikalibrasi lewat panel "Kalibrasi" di topbar (beda dari CFG yg tetap
+// dikunci di kode) -- lihat SETTINGS_SCHEMA utk daftar field & tipe input yg dirender otomatis.
+// rangeMinCandles/rangeMaxCandles/rangeMaxWidthAtr menggantikan CFG.rangeMinCandles/rangeMaxWindow/
+// rangeMaxAtrWidth (default sama: 6/24/2.0, sudah terbukti lewat Monte Carlo -- lihat blueprint §4.4).
+const DEFAULT_SETTINGS = {
+  sweepDepthMode: 'atr',          // 'atr' | 'points'
+  sweepDepthMinAtr: 0.5, sweepDepthMaxAtr: 2.0,
+  sweepDepthMinPts: 1.0, sweepDepthMaxPts: 15,
+  reclaimMaxCandles: 3,
+  rangeMinCandles: 6, rangeMaxCandles: 24, rangeMaxWidthAtr: 2.0,
+  compressionEnabled: true, compressionPct: 70,
+  displacementMode: 'atr',        // 'atr' | 'medianBody'
+  displacementAtrMult: 1.5, displacementMedianBodyMult: 1.2,
+  mssRequireClose: true,           // true = wajib CLOSE tembus struktur; false = wick tembus sudah cukup
+};
+
+const SETTINGS_SCHEMA = [
+  { group:'Sweep Depth', desc:'Seberapa dalam wick boleh menembus level sebelum dianggap bukan sweep lagi (terlalu dangkal = noise, terlalu dalam = breakout bukan sweep).', fields:[
+    { key:'sweepDepthMode', label:'Mode', type:'select', options:[['atr','Relatif ATR'],['points','Poin harga']] },
+    { key:'sweepDepthMinAtr', label:'Minimum (× ATR)', type:'number', step:0.1, min:0, showIf:s=>s.sweepDepthMode==='atr' },
+    { key:'sweepDepthMaxAtr', label:'Maksimum (× ATR)', type:'number', step:0.1, min:0, showIf:s=>s.sweepDepthMode==='atr' },
+    { key:'sweepDepthMinPts', label:'Minimum (poin)', type:'number', step:0.1, min:0, showIf:s=>s.sweepDepthMode==='points' },
+    { key:'sweepDepthMaxPts', label:'Maksimum (poin)', type:'number', step:0.1, min:0, showIf:s=>s.sweepDepthMode==='points' },
+  ]},
+  { group:'Reclaim', desc:'Berapa candle maksimum yg diberi kesempatan utk harga reclaim balik sebelum sweep dianggap gagal (timeout).', fields:[
+    { key:'reclaimMaxCandles', label:'Maksimum candle', type:'select', options:[[1,'1 candle'],[2,'2 candle'],[3,'3 candle'],[4,'4 candle']] },
+  ]},
+  { group:'Range', desc:'Ukuran jendela candle yg disisir utk mendeteksi range/konsolidasi pasca-sweep, dan lebar maksimum yg masih dianggap "ranging".', fields:[
+    { key:'rangeMinCandles', label:'Minimum candle', type:'number', step:1, min:2 },
+    { key:'rangeMaxCandles', label:'Maksimum candle', type:'number', step:1, min:2 },
+    { key:'rangeMaxWidthAtr', label:'Lebar maksimum (× ATR)', type:'number', step:0.1, min:0.1 },
+  ]},
+  { group:'Compression', desc:'Tanda tambahan (bukan gerbang wajib) bahwa volatilitas menyempit dibanding sebelum range terbentuk -- indikasi tekanan sebelum ekspansi.', fields:[
+    { key:'compressionEnabled', label:'Aktifkan', type:'checkbox' },
+    { key:'compressionPct', label:'ATR sekarang < X% ATR sebelumnya', type:'number', step:1, min:1, max:100 },
+  ]},
+  { group:'Displacement', desc:'Seberapa besar badan candle harus dibanding "normal" agar dianggap gerakan displacement yg sungguhan, bukan candle biasa.', fields:[
+    { key:'displacementMode', label:'Mode', type:'select', options:[['atr','Relatif ATR'],['medianBody','Relatif median body']] },
+    { key:'displacementAtrMult', label:'Badan ≥ (× ATR)', type:'number', step:0.1, min:0.1, showIf:s=>s.displacementMode==='atr' },
+    { key:'displacementMedianBodyMult', label:'Badan ≥ (× median body)', type:'number', step:0.1, min:0.1, showIf:s=>s.displacementMode==='medianBody' },
+  ]},
+  { group:'MSS / CHOCH', desc:'Apakah tembusan struktur harus berupa CLOSE candle (lebih ketat, mengurangi sinyal palsu) atau cukup WICK menembus saja (lebih cepat, lebih banyak sinyal palsu).', fields:[
+    { key:'mssRequireClose', label:'Wajib close tembus struktur (bukan cuma wick)', type:'checkbox' },
+  ]},
+];
+
+let SETTINGS = Object.assign({}, DEFAULT_SETTINGS);
+
+function loadSettings(){
+  try{
+    const raw = localStorage.getItem('lfc.settings');
+    if(raw){ const parsed = JSON.parse(raw); SETTINGS = Object.assign({}, DEFAULT_SETTINGS, parsed); }
+  }catch(e){ SETTINGS = Object.assign({}, DEFAULT_SETTINGS); }
+}
+function saveSettings(){
+  try{ localStorage.setItem('lfc.settings', JSON.stringify(SETTINGS)); }catch(e){}
+}
+
+// depth = jarak breach TERJAUH dari level (dlm satuan HARGA, bukan ATR/poin) -> dikonversi
+// sesuai mode aktif supaya bisa dibandingkan dgn ambang min/max yg user isi.
+function sweepDepthOk(depthPrice, atr, settings){
+  if(settings.sweepDepthMode==='points'){
+    return depthPrice >= settings.sweepDepthMinPts && depthPrice <= settings.sweepDepthMaxPts;
+  }
+  return depthPrice >= settings.sweepDepthMinAtr*atr && depthPrice <= settings.sweepDepthMaxAtr*atr;
+}
+function sweepDepthTooDeep(depthPrice, atr, settings){
+  const max = settings.sweepDepthMode==='points' ? settings.sweepDepthMaxPts : settings.sweepDepthMaxAtr*atr;
+  return depthPrice > max;
+}
 
 /* =============================== 2. UTILITAS =============================== */
 
@@ -482,6 +585,8 @@ function newEngineState(asset){
     postSweepState:null,     // ranging | immediate_reversal | continuation | unclear
     postSweepSince:null,
     range:null,              // {startTs, high, low}
+    atrRef:null,              // jangkar ATR utk cek Compression (lihat §4 di stepEngine)
+    compression:false,
     internalLiquidity:null,  // {price, density, dir}
     secondSweep:null,
     displacement:null,       // {ts, dir}
@@ -502,6 +607,7 @@ function pushTimeline(st, msg, kind){
 
 function resetHypothesis(st, keepExternal){
   st.activeSweep=null; st.postSweepState=null; st.postSweepSince=null; st.range=null;
+  st.atrRef=null; st.compression=false;
   st.internalLiquidity=null; st.secondSweep=null; st.displacement=null; st.mss=null;
   st.mssSearchFrom=null; st.fvg=null; st.retest=null; st.sl=null; st.tp=null; st.rr=null;
   if(!keepExternal) st.externalLiquidity={above:null,below:null};
@@ -509,7 +615,7 @@ function resetHypothesis(st, keepExternal){
 
 function setStatus(st, s){ if(st.status!==s){ st.status=s; } }
 
-function evaluateSweep(sweep, level, dir, candles, atr, ticksize){
+function evaluateSweep(sweep, level, dir, candles, atr, ticksize, settings){
   // sweep = objek activeSweep atau null (baru). level/dir = target & arah ('above'|'below').
   const last = candles[candles.length-1];
   if(!last) return sweep;
@@ -519,7 +625,8 @@ function evaluateSweep(sweep, level, dir, candles, atr, ticksize){
     if(!breached) return { level, dir, state:'WAITING' };
     const wick = dir==='above' ? (last.h-Math.max(last.o,last.c)) : (Math.min(last.o,last.c)-last.l);
     const range = Math.max(last.h-last.l, 1e-9);
-    return { level, dir, state:'PARTIAL', breachTs:last.t, breachPrice: dir==='above'?last.h:last.l,
+    const extreme = dir==='above' ? last.h : last.l;
+    return { level, dir, state:'PARTIAL', breachTs:last.t, breachPrice: extreme, maxExtreme: extreme,
       wickRatio: wick/range };
   }
   if(sweep.state==='WAITING'){
@@ -527,22 +634,36 @@ function evaluateSweep(sweep, level, dir, candles, atr, ticksize){
     if(breached){
       const wick = dir==='above' ? (last.h-Math.max(last.o,last.c)) : (Math.min(last.o,last.c)-last.l);
       const range = Math.max(last.h-last.l, 1e-9);
-      return { level, dir, state:'PARTIAL', breachTs:last.t, breachPrice: dir==='above'?last.h:last.l,
+      const extreme = dir==='above' ? last.h : last.l;
+      return { level, dir, state:'PARTIAL', breachTs:last.t, breachPrice: extreme, maxExtreme: extreme,
         wickRatio: wick/range };
     }
     return sweep;
   }
   if(sweep.state==='PARTIAL'){
+    // Kedalaman sweep = titik TERJAUH yg pernah dicapai sejak breach, bukan cuma breach pertama --
+    // harga bisa terus menembus lebih jauh selama beberapa candle sebelum akhirnya reclaim.
+    const curExtreme = dir==='above' ? last.h : last.l;
+    sweep.maxExtreme = dir==='above' ? Math.max(sweep.maxExtreme, curExtreme) : Math.min(sweep.maxExtreme, curExtreme);
+    const depth = Math.abs(sweep.maxExtreme - level);
+    if(sweepDepthTooDeep(depth, atr, settings)){
+      sweep.state='FAILED'; sweep.failReason='too_deep'; return sweep;
+    }
     const since = candles.filter(c=>c.t>=sweep.breachTs);
     const reclaimed = dir==='above' ? last.c < level : last.c > level;
     if(reclaimed){
-      sweep.state='VALID'; sweep.reclaimTs=last.t;
+      if(!sweepDepthOk(depth, atr, settings)){
+        // Reclaim terjadi tapi kedalamannya belum cukup utk dianggap sweep sungguhan (bukan cuma
+        // noise breach tipis) -- anulir, bukan diloloskan diam-diam.
+        sweep.state='FAILED'; sweep.failReason='too_shallow'; return sweep;
+      }
+      sweep.state='VALID'; sweep.reclaimTs=last.t; sweep.breachPrice=sweep.maxExtreme;
       return sweep;
     }
     const continued = dir==='above' ? last.h >= sweep.breachPrice + atr*CFG.failContinueAtrMult
                                      : last.l <= sweep.breachPrice - atr*CFG.failContinueAtrMult;
-    if(continued){ sweep.state='FAILED'; return sweep; }
-    if(since.length > CFG.reclaimWindow){ sweep.state='FAILED'; return sweep; }
+    if(continued){ sweep.state='FAILED'; sweep.failReason='continuation'; return sweep; }
+    if(since.length > settings.reclaimMaxCandles){ sweep.state='FAILED'; sweep.failReason='timeout'; return sweep; }
     return sweep;
   }
   return sweep;
@@ -581,25 +702,36 @@ function findEqualCluster(candles, atr, dir){
   return { price:avg, density, count:best.length };
 }
 
-function findDisplacement(candles, atr, dir, sinceTs){
+function medianBody(win){
+  if(!win.length) return 0;
+  const bodies = win.map(c=>Math.abs(c.c-c.o)).sort((a,b)=>a-b);
+  return bodies[Math.floor(bodies.length/2)];
+}
+
+function findDisplacement(candles, atr, dir, sinceTs, settings){
   const win = candles.filter(c=>c.t>=sinceTs);
   for(let i=1;i<win.length;i++){
     const c=win[i], prev=win[i-1];
     const body = Math.abs(c.c-c.o);
-    if(body < atr*CFG.displacementAtrMult) continue;
+    if(settings.displacementMode==='medianBody'){
+      const threshold = settings.displacementMedianBodyMult * medianBody(win.slice(Math.max(0,i-10), i));
+      if(body < threshold) continue;
+    } else {
+      if(body < atr*settings.displacementAtrMult) continue;
+      const prevBody = Math.abs(prev.c-prev.o);
+      if(body <= prevBody) continue;
+    }
     const range = Math.max(c.h-c.l,1e-9);
     // dir='above' -> hipotesis BEARISH -> candle kuat harus close dekat LOW-nya (h-c kecil / (h-c)/range besar).
     // dir='below' -> hipotesis BULLISH -> candle kuat harus close dekat HIGH-nya ((c-l)/range besar).
     const closePos = dir==='above' ? (c.h-c.c)/range : (c.c-c.l)/range;
     if(closePos < 1-CFG.displacementCloseZone) continue;
-    const prevBody = Math.abs(prev.c-prev.o);
-    if(body <= prevBody) continue;
     return { ts:c.t, dir };
   }
   return null;
 }
 
-function findMSS(candles, dispTs, dir){
+function findMSS(candles, dispTs, dir, settings){
   const before = candles.filter(c=>c.t<dispTs);
   // dir='above' -> BEARISH -> MSS = menembus swing LOW terakhir ke bawah.
   // dir='below' -> BULLISH -> MSS = menembus swing HIGH terakhir ke atas.
@@ -608,8 +740,13 @@ function findMSS(candles, dispTs, dir){
   const level = sw[sw.length-1].price;
   const disp = candles.find(c=>c.t===dispTs);
   if(!disp) return null;
-  const broke = dir==='above' ? disp.c < level : disp.c > level;
-  return broke ? { ts:dispTs, level } : null;
+  // mssRequireClose=true (default) -> WAJIB close menembus (Wick Break != Structure Break -- lebih
+  // ketat, menghindari sinyal palsu dari wick sesaat yg langsung ditarik balik). false -> wick
+  // menembus saja sudah dianggap cukup (lebih cepat tapi lebih rawan sinyal palsu).
+  const broke = settings.mssRequireClose
+    ? (dir==='above' ? disp.c < level : disp.c > level)
+    : (dir==='above' ? disp.l < level : disp.h > level);
+  return broke ? { ts:dispTs, level, byWick: !!(!settings.mssRequireClose && !(dir==='above' ? disp.c<level : disp.c>level)) } : null;
 }
 
 function findFVG(candles, mssTs, dir, atr){
@@ -680,13 +817,13 @@ function stepEngine(st, m1, m5, ticksize){
     if(touch > st.atr*CFG.approachAtrMult){ setStatus(st, T.status.OBSERVE); return; }
 
     setStatus(st, T.status.DEVELOPING);
-    st.activeSweep = evaluateSweep(null, level, dir, m1, st.atr, ticksize);
+    st.activeSweep = evaluateSweep(null, level, dir, m1, st.atr, ticksize, SETTINGS);
     return;
   }
 
   // 1b) Sweep sudah dilacak tapi belum final: teruskan evaluasi SETIAP candle sampai VALID atau FAILED.
   if(st.activeSweep.state==='WAITING' || st.activeSweep.state==='PARTIAL'){
-    st.activeSweep = evaluateSweep(st.activeSweep, st.activeSweep.level, st.activeSweep.dir, m1, st.atr, ticksize);
+    st.activeSweep = evaluateSweep(st.activeSweep, st.activeSweep.level, st.activeSweep.dir, m1, st.atr, ticksize, SETTINGS);
     if(st.activeSweep.state==='VALID'){
       const dir0 = st.activeSweep.dir;
       pushTimeline(st, `First sweep VALID (${dir0}) @ ${fmt(st.activeSweep.breachPrice,4)}`, 'ok');
@@ -734,6 +871,10 @@ function stepEngine(st, m1, m5, ticksize){
   //    rentang sempit tidak akan pernah terpenuhi lagi. `all` (menumpuk) hanya dipakai untuk cek timeout.
   if(!st.internalLiquidity){
     const all = m1.filter(c=>c.t>st.postSweepSince); // strictly setelah candle reclaim (candle reclaim sendiri masih bergejolak)
+    // Jangkar Compression: ATR pertama kali fase range-search ini dimasuki, dipakai sbg pembanding
+    // "ATR sebelumnya" -- ditangkap SEKALI (bukan tiap langkah) supaya jadi titik referensi yg stabil.
+    if(st.atrRef==null) st.atrRef = st.atr;
+    st.compression = !!(SETTINGS.compressionEnabled && st.atrRef && st.atr < st.atrRef*(SETTINGS.compressionPct/100));
     // Sisir dari jendela TERBESAR ke TERKECIL, ambil yg pertama muat di bawah ambang lebar.
     // Lebar range monoton melebar seiring jendela membesar (jendela besar = superset candle dari
     // jendela kecil, jadi hi/lo-nya tidak pernah mengecil) -- artinya kalau jendela kecil TIDAK
@@ -743,10 +884,10 @@ function stepEngine(st, m1, m5, ticksize){
     // titik swing utk "equal highs/lows" (terbukti lewat simulasi); window lebih besar (~16-24)
     // punya jauh lebih banyak kandidat swing tanpa mengorbankan makna "range yg sempit".
     let win = null;
-    for(let w=Math.min(CFG.rangeMaxWindow, all.length); w>=CFG.rangeMinCandles; w--){
+    for(let w=Math.min(SETTINGS.rangeMaxCandles, all.length); w>=SETTINGS.rangeMinCandles; w--){
       const cand = all.slice(-w);
       const hi=Math.max(...cand.map(c=>c.h)), lo=Math.min(...cand.map(c=>c.l));
-      if(hi-lo <= st.atr*CFG.rangeMaxAtrWidth){ win = cand; break; }
+      if(hi-lo <= st.atr*SETTINGS.rangeMaxWidthAtr){ win = cand; break; }
     }
     if(win){
       const hi=Math.max(...win.map(c=>c.h)), lo=Math.min(...win.map(c=>c.l));
@@ -767,7 +908,7 @@ function stepEngine(st, m1, m5, ticksize){
   // 5) Second sweep (level = internal liquidity, arah berlawanan dgn first sweep)
   if(!st.secondSweep || st.secondSweep.state==='WAITING' || st.secondSweep.state==='PARTIAL'){
     st.secondSweep = evaluateSweep(st.secondSweep, st.internalLiquidity.price, st.internalLiquidity.dir,
-      m1, st.atr, ticksize);
+      m1, st.atr, ticksize, SETTINGS);
     if(st.secondSweep.state==='FAILED'){
       pushTimeline(st, 'Second sweep gagal — internal liquidity tak tersapu bersih, coba ulang', 'inv');
       st.secondSweep=null; return;
@@ -796,9 +937,9 @@ function stepEngine(st, m1, m5, ticksize){
   //    mssSearchFrom sbg kursor yg maju tiap kandidat gagal, kandidat berikutnya tetap dicoba.
   if(!st.mss){
     const searchFrom = st.mssSearchFrom || st.secondSweep.reclaimTs || st.secondSweep.breachTs;
-    const disp = findDisplacement(m1, st.atr, dir, searchFrom);
+    const disp = findDisplacement(m1, st.atr, dir, searchFrom, SETTINGS);
     if(disp){
-      const mss = findMSS(m1, disp.ts, dir);
+      const mss = findMSS(m1, disp.ts, dir, SETTINGS);
       if(mss){
         st.displacement = disp; st.mss = mss;
         pushTimeline(st, `Displacement candle terdeteksi (${dir})`, 'ok');
@@ -997,6 +1138,68 @@ function startConnections(){
       ? connectBinanceDirect(asset, callbacks)
       : connectBridge(asset, base, src, callbacks);
   });
+}
+
+/* ============================== 6b. PANEL KALIBRASI ============================== */
+// Draft terpisah dari SETTINGS yg aktif -- perubahan di form BELUM berlaku ke mesin sampai
+// tombol "Terapkan" ditekan (supaya toggle mode/checkbox bisa dicoba-coba tanpa langsung
+// mengubah hasil live, dan supaya bisa "Batal" dgn menutup modal tanpa efek samping).
+let SETTINGS_DRAFT = null;
+const SETTINGS_FIELD_TYPE = {};
+SETTINGS_SCHEMA.forEach(g=>g.fields.forEach(f=>{ SETTINGS_FIELD_TYPE[f.key]=f.type; }));
+
+function settingsRowHtml(f, draft){
+  if(f.showIf && !f.showIf(draft)) return '';
+  const val = draft[f.key];
+  let input;
+  if(f.type==='select'){
+    input = '<select data-key="'+f.key+'">' + f.options.map(([v,lbl])=>
+      '<option value="'+v+'"'+(String(v)===String(val)?' selected':'')+'>'+lbl+'</option>').join('') + '</select>';
+  } else if(f.type==='checkbox'){
+    input = '<input type="checkbox" data-key="'+f.key+'"'+(val?' checked':'')+'>';
+  } else {
+    input = '<input type="number" step="'+(f.step!=null?f.step:1)+'"'
+      + (f.min!=null?' min="'+f.min+'"':'') + (f.max!=null?' max="'+f.max+'"':'')
+      + ' data-key="'+f.key+'" value="'+val+'">';
+  }
+  return '<div class="setting-row"><label>'+f.label+'</label>'+input+'</div>';
+}
+
+function renderSettingsForm(){
+  document.getElementById('settingsBody').innerHTML = SETTINGS_SCHEMA.map(g=>
+    '<div class="setting-group"><h4>'+g.group+'</h4><div class="desc">'+g.desc+'</div>'
+    + g.fields.map(f=>settingsRowHtml(f, SETTINGS_DRAFT)).join('')
+    + '</div>'
+  ).join('');
+  document.getElementById('settingsBody').querySelectorAll('[data-key]').forEach(el=>{
+    const key = el.getAttribute('data-key');
+    const type = SETTINGS_FIELD_TYPE[key];
+    el.addEventListener('change', ()=>{
+      if(type==='checkbox') SETTINGS_DRAFT[key] = el.checked;
+      else if(type==='number') SETTINGS_DRAFT[key] = parseFloat(el.value);
+      else if(key==='reclaimMaxCandles') SETTINGS_DRAFT[key] = parseInt(el.value,10);
+      else SETTINGS_DRAFT[key] = el.value;
+      // Mode toggle (select) mengubah field mana yg relevan (showIf) -- render ulang form.
+      if(type==='select') renderSettingsForm();
+    });
+  });
+}
+
+function openSettingsModal(){
+  SETTINGS_DRAFT = Object.assign({}, SETTINGS);
+  renderSettingsForm();
+  document.getElementById('settingsOverlay').style.display='flex';
+}
+function closeSettingsModal(){ document.getElementById('settingsOverlay').style.display='none'; }
+
+function applySettings(){
+  Object.assign(SETTINGS, SETTINGS_DRAFT);
+  saveSettings();
+  // Kalibrasi baru berlaku ke SELURUH histori yg sudah masuk (bukan cuma candle baru ke depan) --
+  // sama seperti backfill, replay ulang tiap pair lewat mesin yg sama persis dgn parameter baru.
+  Object.values(APP).forEach(app=>replayHistory(app));
+  renderAll();
+  closeSettingsModal();
 }
 
 /* ================================ 7. RENDER ================================ */
@@ -1354,6 +1557,7 @@ function renderDetail(){
       + chk(!!eng.activeSweep && eng.activeSweep.state==='VALID', 'Sweep reclaimed (VALID)')
       + '<div class="section-hd">Post-Sweep Behavior</div>'
       + chk(!!st_range(eng), 'Range terbentuk')
+      + (SETTINGS.compressionEnabled ? chk(!!eng.compression, 'Compression (ATR menyempit)') : '')
       + chk(!!eng.internalLiquidity, 'Internal liquidity building')
       + chk(!!eng.secondSweep && eng.secondSweep.state==='VALID', 'Second sweep confirmed', eng.secondSweep&&eng.secondSweep.state==='FAILED')
       + '<div class="section-hd">Confirmation</div>'
@@ -1406,9 +1610,15 @@ function renderAll(){
 
 /* ================================= 8. BOOTSTRAP ================================= */
 
+loadSettings();
 ASSETS.forEach(initAsset);
 attachChartDragOnce();
 document.getElementById('btnReconnectAll').addEventListener('click', startConnections);
+document.getElementById('btnCalibration').addEventListener('click', openSettingsModal);
+document.getElementById('btnCloseSettings').addEventListener('click', closeSettingsModal);
+document.getElementById('btnApplySettings').addEventListener('click', applySettings);
+document.getElementById('btnResetSettings').addEventListener('click', ()=>{ SETTINGS_DRAFT = Object.assign({}, DEFAULT_SETTINGS); renderSettingsForm(); });
+document.getElementById('settingsOverlay').addEventListener('click', (e)=>{ if(e.target.id==='settingsOverlay') closeSettingsModal(); });
 startConnections();
 renderAll();
 setInterval(renderAll, 1000);
