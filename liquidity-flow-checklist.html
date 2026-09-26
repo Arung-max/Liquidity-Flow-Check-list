@@ -280,7 +280,10 @@ const CFG = {
   // "Structure" nyaris tak pernah tercentang). 2.0 + rangeMaxWindow (cari lebar jendela yg pas,
   // bukan kaku 8 candle) menaikkan peluang deteksi ke ~30% tanpa mengorbankan makna "ranging".
   rangeMinCandles: 6, rangeMaxWindow: 24, rangeMaxAtrWidth: 2.0,
-  equalTolAtrMult: 0.15,
+  // equalTolAtrMult: dulu 0.15 -- simulasi menunjukkan pada window kecil (tempat pencarian range
+  // dulu berhenti, lihat catatan di §5) nyaris tak pernah ada 2 swing sedekat itu. 0.3 + window
+  // yg lebih besar (lihat §5) menaikkan peluang deteksi tanpa membuat "equal" jadi terlalu longgar.
+  equalTolAtrMult: 0.3,
   rejectionWickRatio: 0.5,
   displacementAtrMult: 1.5, displacementCloseZone: 0.25,
   fvgMinAtrMult: 0.2, fvgFillPct: 0.5,
@@ -483,6 +486,7 @@ function newEngineState(asset){
     secondSweep:null,
     displacement:null,       // {ts, dir}
     mss:null,                // {ts, level}
+    mssSearchFrom:null,      // kursor kandidat displacement yg sudah dicoba & gagal MSS (lihat §6)
     fvg:null,                // {ts, top, bottom, dir, filled}
     retest:null,             // {ts, rejected}
     sl:null, tp:null, rr:null,
@@ -499,7 +503,7 @@ function pushTimeline(st, msg, kind){
 function resetHypothesis(st, keepExternal){
   st.activeSweep=null; st.postSweepState=null; st.postSweepSince=null; st.range=null;
   st.internalLiquidity=null; st.secondSweep=null; st.displacement=null; st.mss=null;
-  st.fvg=null; st.retest=null; st.sl=null; st.tp=null; st.rr=null;
+  st.mssSearchFrom=null; st.fvg=null; st.retest=null; st.sl=null; st.tp=null; st.rr=null;
   if(!keepExternal) st.externalLiquidity={above:null,below:null};
 }
 
@@ -730,12 +734,16 @@ function stepEngine(st, m1, m5, ticksize){
   //    rentang sempit tidak akan pernah terpenuhi lagi. `all` (menumpuk) hanya dipakai untuk cek timeout.
   if(!st.internalLiquidity){
     const all = m1.filter(c=>c.t>st.postSweepSince); // strictly setelah candle reclaim (candle reclaim sendiri masih bergejolak)
-    // Sisir beberapa lebar jendela (bukan kaku satu ukuran) -- ambil yg PALING BARU/SEMPIT yg
-    // sudah muat di bawah ambang, baru mundur ke jendela lebih lebar kalau belum ada yg pas.
-    // Window tunggal (dulu selalu 8) ternyata jarang sekali pas persis dgn ambang lebar sempit
-    // pada gerakan harga acak -- lihat catatan rangeMaxAtrWidth di §CFG.
+    // Sisir dari jendela TERBESAR ke TERKECIL, ambil yg pertama muat di bawah ambang lebar.
+    // Lebar range monoton melebar seiring jendela membesar (jendela besar = superset candle dari
+    // jendela kecil, jadi hi/lo-nya tidak pernah mengecil) -- artinya kalau jendela kecil TIDAK
+    // muat, jendela lebih besar PASTI juga tidak muat (percuma disisir naik). Sebaliknya kalau
+    // dicari dari yg TERBESAR turun, begitu ketemu yg muat, itu jendela TERBESAR yg masih sah --
+    // bukan yg tersempit. Ini penting krn window kecil (6-8 candle) nyaris tak pernah punya cukup
+    // titik swing utk "equal highs/lows" (terbukti lewat simulasi); window lebih besar (~16-24)
+    // punya jauh lebih banyak kandidat swing tanpa mengorbankan makna "range yg sempit".
     let win = null;
-    for(let w=CFG.rangeMinCandles; w<=Math.min(CFG.rangeMaxWindow, all.length); w++){
+    for(let w=Math.min(CFG.rangeMaxWindow, all.length); w>=CFG.rangeMinCandles; w--){
       const cand = all.slice(-w);
       const hi=Math.max(...cand.map(c=>c.h)), lo=Math.min(...cand.map(c=>c.l));
       if(hi-lo <= st.atr*CFG.rangeMaxAtrWidth){ win = cand; break; }
@@ -766,8 +774,13 @@ function stepEngine(st, m1, m5, ticksize){
     }
     if(st.secondSweep.state==='VALID'){
       if((st.secondSweep.wickRatio||0) < CFG.rejectionWickRatio){
-        pushTimeline(st, 'Second sweep breach+reclaim tapi wick rejection tipis — belum CONFIRMED');
-        return;
+        // PENTING: benar-benar direset (bukan cuma "return" tanpa mengubah state) -- kalau
+        // dibiarkan state='VALID' begitu saja, langkah BERIKUTNYA tidak lagi WAITING/PARTIAL
+        // ataupun masuk cabang ini lagi, jadi cek wick ini keliru cuma berlaku sekali lalu
+        // otomatis "lolos" diam-diam ke Displacement di langkah sesudahnya. Reset ke null
+        // memberi kesempatan mencari sapuan BARU pada level yg sama dgn wick rejection bersih.
+        pushTimeline(st, 'Second sweep breach+reclaim tapi wick rejection tipis — dicoba ulang', 'inv');
+        st.secondSweep = null; return;
       }
       pushTimeline(st, `SECOND SWEEP CONFIRMED @ ${fmt(st.secondSweep.breachPrice,4)}`, 'ok');
     } else return;
@@ -775,15 +788,26 @@ function stepEngine(st, m1, m5, ticksize){
   if(!st.secondSweep || st.secondSweep.state!=='VALID') return;
 
   // 6) Displacement -> MSS -> FVG -> Retest (arah = arah hipotesis awal = dir first sweep)
-  if(!st.displacement){
-    st.displacement = findDisplacement(m1, st.atr, dir, st.secondSweep.reclaimTs||st.secondSweep.breachTs);
-    if(st.displacement) pushTimeline(st, `Displacement candle terdeteksi (${dir})`, 'ok');
-    else return;
-  }
+  //    Displacement & MSS dicari BERSAMA tiap langkah (bukan "kunci kandidat pertama lalu cek
+  //    MSS sekali") -- findDisplacement & findMSS deterministik dari titik jangkarnya (dispTs
+  //    tetap, swing sebelum dispTs tidak pernah berubah), jadi kalau kandidat pertama dikunci
+  //    ke st.displacement tapi MSS-nya gagal, findMSS akan TERUS mengembalikan null selamanya --
+  //    macet permanen walau ada kandidat displacement lain yg lebih baru & lebih valid. Dengan
+  //    mssSearchFrom sbg kursor yg maju tiap kandidat gagal, kandidat berikutnya tetap dicoba.
   if(!st.mss){
-    st.mss = findMSS(m1, st.displacement.ts, dir);
-    if(st.mss) pushTimeline(st, `MSS/CHOCH tervalidasi — struktur tertembus @ ${fmt(st.mss.level,4)}`, 'ok');
-    else return;
+    const searchFrom = st.mssSearchFrom || st.secondSweep.reclaimTs || st.secondSweep.breachTs;
+    const disp = findDisplacement(m1, st.atr, dir, searchFrom);
+    if(disp){
+      const mss = findMSS(m1, disp.ts, dir);
+      if(mss){
+        st.displacement = disp; st.mss = mss;
+        pushTimeline(st, `Displacement candle terdeteksi (${dir})`, 'ok');
+        pushTimeline(st, `MSS/CHOCH tervalidasi — struktur tertembus @ ${fmt(mss.level,4)}`, 'ok');
+      } else {
+        st.mssSearchFrom = disp.ts + 1; // kandidat ini tak berujung MSS -- coba kandidat SETELAHNYA
+      }
+    }
+    if(!st.mss) return;
   }
   if(!st.fvg){
     st.fvg = findFVG(m1, st.mss.ts, dir, st.atr);

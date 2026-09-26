@@ -165,25 +165,49 @@ fase kedua):
   - *Continuation* → berarti sweep sebenarnya FAILED, lihat §4.4.
   - *Unclear* → tunggu, timeout 15 candle M1 tanpa kejelasan = kembali ke
     `DEVELOPING` dan cari setup baru.
-- **Range valid**: dicari dengan menyisir lebar jendela `6..24 candle M1`
-  (bukan kaku satu ukuran) — begitu ketemu jendela (dari yang paling
-  baru/sempit) dengan high/low tertampung dalam pita `≤ 2.0 × ATR`, itu
-  dipakai. *(V1.1.1: nilai asli 1.2×ATR dgn jendela kaku 8-candle terbukti
-  lewat simulasi random-walk cuma punya ~0,3% peluang terpenuhi per langkah
-  — praktis mustahil pada gerak harga sungguhan, bikin "Structure" nyaris
-  tidak pernah tercentang. 2.0×ATR + jendela yang disisir menaikkan peluang
-  ke ~30% per langkah tanpa membuat tren kuat ikut kebaca sebagai ranging.)*
+- **Range valid**: dicari dengan menyisir lebar jendela `24..6 candle M1`
+  dari yang **TERBESAR ke TERKECIL** (bukan kaku satu ukuran) — begitu ketemu
+  jendela dengan high/low tertampung dalam pita `≤ 2.0 × ATR`, itu dipakai
+  (jendela terbesar yang masih sah, memberi paling banyak kandidat titik
+  swing utk §"Equal highs/lows" di bawah — lebar range monoton melebar
+  seiring jendela membesar, jadi kalau jendela kecil sudah tidak muat,
+  jendela lebih besar pasti juga tidak muat; sebaliknya tidak berlaku).
+  *(V1.1.1: nilai asli 1.2×ATR dgn jendela kaku 8-candle terbukti lewat
+  simulasi random-walk cuma punya ~0,3% peluang terpenuhi per langkah —
+  praktis mustahil pada gerak harga sungguhan. Versi pertama perbaikan
+  (2.0×ATR, cari dari jendela TERKECIL) menaikkan peluang range itu sendiri
+  ke ~30%, tapi jendela kecil yang kepilih nyaris tidak pernah punya cukup
+  titik swing utk "Equal highs/lows" (lihat catatan di situ) — makanya
+  Second Sweep dst. tetap 0% sampai arah pencarian dibalik ke TERBESAR.)*
 - **Compression**: lebar pita rolling-5-candle menurun `≥ 3` candle berturutan.
-- **Equal highs/lows**: `≥ 2` swing point M1 dalam toleransi `≤ 0.15 × ATR`
-  (atau `≤ 3 tick`, mana yang lebih besar) satu sama lain. Jumlah titik yang
-  berkumpul = **Liquidity Density** (2 titik = LOW, 3 = MEDIUM, ≥4 = HIGH),
-  persis visual di V1.0 §5.
+- **Equal highs/lows**: `≥ 2` swing point M1 dalam toleransi `≤ 0.3 × ATR`
+  (atau `≤ 3 tick`, mana yang lebih besar) satu sama lain, dicari di dalam
+  jendela range §4.5 di atas. Jumlah titik yang berkumpul = **Liquidity
+  Density** (2 titik = LOW, 3 = MEDIUM, ≥4 = HIGH), persis visual di V1.0 §5.
+  *(V1.1.1: toleransi asli 0.15×ATR, dan jendela range dulu diambil dari yg
+  TERSEMPIT/paling baru yg muat di bawah ambang lebar. Kombinasi keduanya
+  nyaris mustahil terpenuhi — jendela sempit (6-8 candle) rata-rata cuma
+  punya <1 titik swing per tipe, jauh dari cukup utk syarat "≥2 saling
+  berdekatan". Sekarang jendela range diambil dari yg TERBESAR yg masih muat
+  (lihat §4.5) — memberi lebih banyak kandidat swing tanpa melonggarkan arti
+  "range yang sempit" itu sendiri — plus toleransi yang dua kali lebih
+  longgar.)*
 
 ### 4.6 Second Sweep
 Level target = klaster equal-high/low dengan density tertinggi di dalam
 range aktif. Rumus breach/reclaim/rejection identik §4.4.
 **SECOND SWEEP CONFIRMED** hanya jika ketiganya (breach + reclaim + rejection
-wick) terpenuhi — ini gate wajib sebelum §4.7 dievaluasi sama sekali.
+wick) terpenuhi — ini gate wajib sebelum §4.7 dievaluasi sama sekali. Kalau
+breach+reclaim VALID tapi wick rejection-nya tipis, hipotesis sapuan ini
+**direset** (bukan sekadar ditunda) — dicari lagi sapuan baru pada level yang
+sama, bukan diam-diam lanjut ke §4.7 tanpa rejection yang sah.
+*(V1.1.1: sebelumnya kode punya celah — wick tipis cuma memblokir SATU
+langkah, lalu langkah berikutnya keliru melewatkan gate ini sepenuhnya krn
+kondisi pemeriksaannya sendiri sudah tidak terpenuhi lagi setelah state
+sempat jadi VALID. Ditemukan lewat simulasi Monte Carlo: angka "Displacement
+terdeteksi" ternyata lebih tinggi dari "Second Sweep CONFIRMED" -- artinya
+sebagian kasus lolos ke Displacement tanpa rejection wick yang sah. Sesudah
+diperbaiki, kedua angka itu identik.)*
 
 ### 4.7 Displacement & MSS/CHOCH
 - **Displacement valid**:
@@ -194,6 +218,16 @@ wick) terpenuhi — ini gate wajib sebelum §4.7 dievaluasi sama sekali.
 - **MSS/CHOCH valid**: **close** (bukan wick) dari candle displacement yang
   sama menembus swing point M1 tervalidasi (fractal L=2) yang paling relevan
   ke arah hipotesis, dan gate §4.6 sudah `CONFIRMED` sebelum ini dievaluasi.
+  Kalau kandidat displacement yang ditemukan **tidak** berhasil menembus
+  struktur (MSS gagal), mesin mencoba **kandidat displacement berikutnya**
+  yang muncul kemudian — bukan berhenti selamanya di kandidat pertama.
+  *(V1.1.1: sebelumnya begitu satu candle displacement "dikunci" ke state,
+  MSS dicek SEKALI utk candle itu saja; kalau gagal, `findMSS` dipanggil
+  ulang tiap langkah tapi dengan input yang PERSIS SAMA (titik jangkarnya
+  tetap), jadi hasilnya juga akan selalu sama -- macet permanen sampai
+  seluruh hipotesis di-reset dari SL invalidasi, walau ada displacement
+  candle lain yang lebih baru & valid. Diperbaiki dengan kursor pencarian
+  yang maju ke kandidat berikutnya tiap kali kandidat sebelumnya gagal MSS.)*
 
 ### 4.8 FVG & Risk Map
 - **FVG valid**: 3 candle berurutan dengan `high(candle 1) < low(candle 3)`
