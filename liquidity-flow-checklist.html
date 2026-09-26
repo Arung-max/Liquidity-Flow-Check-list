@@ -870,6 +870,26 @@ function recompute(app){
   stepEngine(app.engine, app.m1Agg.series(), app.m5Agg.series(), tickSizeFor(app));
 }
 
+// Memutar ulang SELURUH histori candle satu-per-satu lewat stepEngine yang SAMA persis dipakai
+// candle live -- bukan cuma mengevaluasi candle TERAKHIR sekali. Tanpa ini, backfill cuma bikin
+// chart-nya terisi tapi mesin checklist tetap buta terhadap apa yang terjadi sebelum app dibuka
+// (sweep/range/second-sweep/displacement yg sudah kejadian di histori tidak pernah "disaksikan",
+// jadi status selalu mulai dari OBSERVE walau candle-nya sudah ada). Dengan replay, begitu app
+// dibuka, status/timeline/checklist langsung mencerminkan alur asli dari histori sampai sekarang
+// -- termasuk kalau menurut mesin sebuah hipotesis sudah CONFIRMED lalu ter-INVALID lagi, dst.
+// State lama SENGAJA dibuang (bukan disambung) supaya hasilnya deterministik & konsisten dgn
+// "seolah menyaksikan dari awal", bukan tercampur residu proses sebelumnya.
+function replayHistory(app){
+  const m1 = app.m1Agg.series(), m5 = app.m5Agg.series(), tickSize = tickSizeFor(app);
+  app.engine = newEngineState(app.asset);
+  let m5i = 0;
+  for(let i=0;i<m1.length;i++){
+    const t = m1[i].t;
+    while(m5i<m5.length && m5[m5i].t<=t) m5i++;
+    stepEngine(app.engine, m1.slice(0,i+1), m5.slice(0,m5i), tickSize);
+  }
+}
+
 function startConnections(){
   const base = document.getElementById('bridgeUrl').value.trim() || 'ws://localhost:8787';
   const src = document.getElementById('sourceMode').value;
@@ -892,7 +912,7 @@ function startConnections(){
       onBackfill:(m1,m5)=>{
         if(m1 && m1.length) app.m1Agg.seed(m1);
         if(m5 && m5.length) app.m5Agg.seed(m5);
-        recompute(app);
+        replayHistory(app);
       },
       // Backfill histori dari bridge.mjs (cTrader GetTrendbars, dikirim per-period -> dipanggil 2x).
       onHistory:(period, candles)=>{
@@ -900,7 +920,7 @@ function startConnections(){
         if(period==='M1') app.m1Agg.seed(candles);
         else if(period==='M5') app.m5Agg.seed(candles);
         else return;
-        recompute(app);
+        replayHistory(app);
       },
     };
     // Kripto langsung ke Binance (lihat catatan di connectBinanceDirect); selain itu lewat bridge.mjs.

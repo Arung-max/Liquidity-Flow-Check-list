@@ -342,6 +342,42 @@ dipasang **sekali** di level `window` saat bootstrap (bukan per-canvas) —
 kalau dipasang per-canvas, listener lama menumpuk tiap render karena canvas
 lamanya dibuang tapi listeker globalnya tidak pernah lepas.
 
+### 6.4 Replay histori ke mesin checklist — bukan cuma ke chart
+
+Backfill (§6.1/§6.2) awalnya cuma mengisi **candle di chart**; mesin checklist
+(§3) sendiri tetap buta terhadap apa yang terjadi sebelum app dibuka, karena
+`stepEngine` didesain menganalisis **satu candle BARU** setiap dipanggil —
+kalau langsung diberi array 180 candle sekaligus lalu dipanggil sekali, ia
+cuma melihat kondisi candle TERAKHIR, seolah 179 candle sebelumnya tidak
+pernah terjadi. Akibatnya status selalu mulai dari OBSERVE walau chart-nya
+sudah penuh histori — persis pertanyaan "sekarang market di posisi apa"
+tidak terjawab, cuma "grafiknya sudah ada" yang terjawab.
+
+Diperbaiki lewat `replayHistory(app)`: begitu histori (kripto maupun
+cTrader) selesai di-seed ke aggregator, seluruh candle-nya **diputar ulang
+satu per satu** lewat `stepEngine` yang sama persis dipakai candle live —
+`engine` dibuang & dibangun ulang dari nol (`newEngineState`), lalu untuk
+tiap index candle `i`, `stepEngine` dipanggil dengan potongan array
+`m1[0..i]` dan `m5` yang sudah closed sampai waktu itu (bukan cuma
+candle terakhir). Hasilnya: begitu backfill selesai, status/checklist/
+timeline/SL-TP langsung mencerminkan alur ASLI dari histori sampai
+sekarang — termasuk kalau sebuah hipotesis sempat CONFIRMED lalu ter-INVALID
+lagi, sweep gagal berkali-kali sebelum akhirnya valid, dst. — bukan cuma
+snapshot sesaat.
+
+Biaya komputasi diabaikan (replay ~180-200 candle × 12 pair, tiap langkah
+O(panjang-potongan) yang murah — total masih di bawah beberapa milidetik).
+
+**Dibuktikan lewat pengujian**: skenario sintetis yang SAMA (lihat §3)
+dipanggil dua cara — sekali dengan array penuh (perilaku lama, hasil:
+macet di `DEVELOPING`, sama sekali tidak mendeteksi bahwa CONFIRMED
+sebenarnya sudah terjadi) vs. diputar satu-per-satu (perilaku baru, hasil:
+`CONFIRMED` dengan timeline lengkap 8 event, SL/TP terisi benar). Juga
+diverifikasi langsung ke data live sungguhan: US500 langsung berstatus
+`WAIT` (bukan `OBSERVE`) dalam hitungan detik setelah tersambung, dengan
+Market Timeline menunjukkan beberapa siklus sweep gagal/invalid sebelum
+sweep yang valid — persis riwayat yang sesungguhnya terjadi di histori.
+
 ---
 
 ## 7. Yang sengaja belum dikerjakan di V1.1
