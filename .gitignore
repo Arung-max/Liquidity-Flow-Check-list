@@ -1,0 +1,15 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Jaga-jaga kalau bridge.mjs / mock-ctrader.mjs suatu saat ditaruh di folder yang sama --
+# jangan pernah commit kredensial broker atau dependency lokal.
+config.json
+.env
+*.pem
+*.key
+node_modules/
