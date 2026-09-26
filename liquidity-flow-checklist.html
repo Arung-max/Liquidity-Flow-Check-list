@@ -1019,6 +1019,21 @@ function zoneColor(type, volStrength){
 // karena otomatis ikut terbuang bersama canvas lamanya -- tidak ada listener nyasar.
 const DRAG = { active:false, startX:0, startEndIdx:0, startTotal:0 };
 
+// renderAll() (data + checklist + DOM) cuma jalan 1x/detik -- cukup utk data live, tapi TERLALU
+// LAMBAT utk geser/zoom chart (terasa patah-patah, nunggu sampai 1 detik baru kelihatan gerak).
+// Redraw kanvas SENDIRIAN (bukan seluruh panel) di setiap event mouse lewat rAF supaya gesernya
+// mengikuti kursor secara real-time, terpisah dari siklus refresh data yang tetap 1 detik.
+let chartRafPending = false;
+function requestChartRedraw(){
+  if(chartRafPending) return;
+  chartRafPending = true;
+  requestAnimationFrame(()=>{
+    chartRafPending = false;
+    const app = APP[ACTIVE_SYM]; const canvas = document.getElementById('chart');
+    if(app && canvas) drawChart(canvas, app.m1Agg.series(), app.engine, app.asset.dp, app.chartView);
+  });
+}
+
 function attachChartDragOnce(){
   window.addEventListener('mousemove', (e)=>{
     if(!DRAG.active) return;
@@ -1029,6 +1044,7 @@ function attachChartDragOnce(){
     const shiftBars = Math.round(-(e.clientX-DRAG.startX) / Math.max(cw,0.0001));
     view.endIdx = clamp(DRAG.startEndIdx + shiftBars, view.count, DRAG.startTotal);
     view.follow = false;
+    requestChartRedraw();
   });
   window.addEventListener('mouseup', ()=>{
     if(!DRAG.active) return;
@@ -1044,6 +1060,7 @@ function wireChartInteraction(canvas, app){
     const factor = e.deltaY>0 ? 1.15 : 1/1.15;
     view.count = Math.round(clamp(view.count*factor, 15, Math.max(15, Math.min(1500,total))));
     if(!view.follow) view.endIdx = clamp(view.endIdx, view.count, total);
+    requestChartRedraw();
   };
   canvas.onmousedown = (e)=>{
     const view = app.chartView; const total = app.m1Agg.series().length;
@@ -1051,7 +1068,7 @@ function wireChartInteraction(canvas, app){
     DRAG.startEndIdx = view.follow ? total : view.endIdx;
     canvas.style.cursor = 'grabbing';
   };
-  canvas.ondblclick = ()=>{ app.chartView.follow = true; };
+  canvas.ondblclick = ()=>{ app.chartView.follow = true; requestChartRedraw(); };
 }
 
 function drawChart(canvas, m1, eng, dp, view){
