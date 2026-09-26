@@ -1001,6 +1001,11 @@ function startConnections(){
 
 /* ================================ 7. RENDER ================================ */
 
+// Jeda kosong di kanan chart (~2cm @ 96 CSS px/inch) -- dipakai bareng oleh drawChart (biar
+// candle tidak mepet tepi) dan handler drag (biar konversi piksel->jumlah-candle presisi,
+// bukan menghitung seolah candle memenuhi seluruh lebar canvas).
+const CHART_RIGHT_GUTTER = 76;
+
 function connBadge(state){
   if(state==='live') return '<span class="dot live"></span>LIVE';
   if(state==='error') return '<span class="dot err"></span>ERROR';
@@ -1129,7 +1134,7 @@ function attachChartDragOnce(){
     const app = APP[ACTIVE_SYM]; const canvas = document.getElementById('chart');
     if(!app || !canvas) return;
     const view = app.chartView;
-    const cw = canvas.clientWidth / Math.max(view.count,1);
+    const cw = Math.max(canvas.clientWidth-CHART_RIGHT_GUTTER,10) / Math.max(view.count,1);
     const shiftBars = Math.round(-(e.clientX-DRAG.startX) / Math.max(cw,0.0001));
     view.endIdx = clamp(DRAG.startEndIdx + shiftBars, view.count, DRAG.startTotal);
     view.follow = false;
@@ -1191,7 +1196,10 @@ function drawChart(canvas, m1, eng, dp, view){
   const pad = (hi-lo)*0.08 || hi*0.001 || 1;
   const top=hi+pad, bot=lo-pad;
   const y = (px)=> H - ( (px-bot)/(top-bot) )*H;
-  const cw = W/data.length;
+  // Jeda kosong di kanan (CHART_RIGHT_GUTTER, ~2cm @ 96 CSS px/inch) supaya candle terbaru
+  // tidak mepet ke tepi kanan chart -- juga jadi tempat lega utk label VWAP di bawah.
+  const plotW = Math.max(W - CHART_RIGHT_GUTTER, 10);
+  const cw = plotW/data.length;
 
   // grid harga
   ctx.strokeStyle = '#171C24'; ctx.lineWidth=1; ctx.font='10px monospace'; ctx.fillStyle='#4E5867';
@@ -1246,7 +1254,7 @@ function drawChart(canvas, m1, eng, dp, view){
   const lastVwapCandle = [...data].reverse().find(c=>c.vwap!=null);
   if(lastVwapCandle){
     ctx.fillStyle='#7FB8FF'; ctx.font='10px monospace';
-    ctx.fillText('VWAP '+fmt(lastVwapCandle.vwap,dp), W-92, y(lastVwapCandle.vwap)-4);
+    ctx.fillText('VWAP '+fmt(lastVwapCandle.vwap,dp), plotW+4, y(lastVwapCandle.vwap)-4);
   }
 
   // candle
