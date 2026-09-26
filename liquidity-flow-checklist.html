@@ -365,7 +365,41 @@ function makeAggregator(periodSec, cap, onClose){
   }
   function series(){ return cur ? candles.concat([cur]) : candles.slice(); }
   function tagCurrent(fields){ if(cur) Object.assign(cur, fields); }
-  return { push, tagCurrent, series, get closed(){ return candles; } };
+  // Suntik candle historis (mis. dari REST backfill) tanpa menimpa candle yang sudah ada dari
+  // tick live (candle live menang kalau timestamp-nya sama -- backfill cuma mengisi celah lama).
+  function seed(historicalCandles){
+    if(!historicalCandles || !historicalCandles.length) return;
+    const existingTs = new Set(candles.map(c=>c.t));
+    if(cur) existingTs.add(cur.t);
+    const toInsert = historicalCandles.filter(h=>!existingTs.has(h.t));
+    if(!toInsert.length) return;
+    candles = toInsert.concat(candles).sort((a,b)=>a.t-b.t);
+    if(candles.length>cap) candles = candles.slice(candles.length-cap);
+  }
+  return { push, tagCurrent, seed, series, get closed(){ return candles; } };
+}
+
+/* -------------------- BACKFILL HISTORIS (Binance klines, publik & tanpa API key) -------------------- */
+// Hanya untuk kripto -- cTrader Open API punya endpoint trendbar historis (ProtoOAGetTrendbarsReq),
+// tapi itu butuh bridge.mjs diperluas (di luar cakupan file ini yang sengaja mandiri). Lihat README.
+async function fetchBinanceKlines(sym, interval, limit){
+  const url = `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${interval}&limit=${limit}`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('klines '+res.status);
+  const rows = await res.json();
+  // format kline Binance: [openTime, open, high, low, close, volume, closeTime, ...]
+  // Candle TERAKHIR dari REST masih "berjalan" (belum tentu closed) -- dibuang, biar tick live yang
+  // melanjutkan candle itu sendiri lewat push(), supaya tidak ada bar duplikat/setengah-jadi.
+  return rows.slice(0, -1).map(r => ({ t:r[0], o:+r[1], h:+r[2], l:+r[3], c:+r[4], v:+r[5] }));
+}
+async function backfillBinance(asset){
+  try {
+    const [m1, m5] = await Promise.all([
+      fetchBinanceKlines(asset.sym, '1m', 180), // ~3 jam
+      fetchBinanceKlines(asset.sym, '5m', 200), // ~16 jam (cukup utk lookback M5 §4.3)
+    ]);
+    return { m1, m5 };
+  } catch(e){ return null; } // gagal backfill bukan fatal -- live tick tetap membangun dari 0 seperti biasa
 }
 
 /* ------------------------------- VWAP SESI ------------------------------- */
@@ -769,6 +803,9 @@ function connectBridge(asset, baseUrl, sourceMode, callbacks){
 // bermasalah -- padahal kripto sendiri tidak butuh itu sama sekali.
 function connectBinanceDirect(asset, callbacks){
   let ws=null, closed=false, retryMs=4000, giveUp=null, live=false;
+  if(callbacks.onBackfill){
+    backfillBinance(asset).then(res=>{ if(res && !closed) callbacks.onBackfill(res.m1, res.m5); });
+  }
   function open(){
     if(closed) return;
     const s = asset.sym.toLowerCase();
@@ -840,6 +877,13 @@ function startConnections(){
         app.m5Agg.push(ts, mid, m.size);
       },
       onStatus:(state,msg)=>{ app.connState=state; app.connMsg=msg; },
+      // Backfill historis (baru berjalan utk kripto -- lihat connectBinanceDirect & fetchBinanceKlines).
+      // Candle live yg mungkin sudah masuk lebih dulu tidak tertimpa (lihat makeAggregator.seed).
+      onBackfill:(m1,m5)=>{
+        if(m1 && m1.length) app.m1Agg.seed(m1);
+        if(m5 && m5.length) app.m5Agg.seed(m5);
+        recompute(app);
+      },
     };
     // Kripto langsung ke Binance (lihat catatan di connectBinanceDirect); selain itu lewat bridge.mjs.
     app.conn = asset.cls==='Kripto'

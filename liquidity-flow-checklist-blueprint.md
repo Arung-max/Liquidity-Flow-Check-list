@@ -231,40 +231,70 @@ atau displacement+MSS yang sudah didefinisikan lintas beberapa candle di §4.
 
 ---
 
-## 6. Live via `bridge.mjs` (tidak ada perubahan pada file bridge)
+## 6. Live: langsung ke Binance (kripto) + `bridge.mjs` (selain kripto)
 
-`bridge.mjs` sudah menyediakan persis yang dibutuhkan — checklist ini memakainya
-sebagai klien WebSocket biasa, satu koneksi per pair:
+Dua jalur data berbeda, dipilih otomatis dari `asset.cls`:
 
-```
-ws://localhost:8787?symbol=XAUUSD           (source=auto: forex/emas/indeks → cTrader)
-ws://localhost:8787?symbol=BTCUSDT          (source=auto: kripto → Binance)
-ws://localhost:8787?symbol=XAUUSD&source=mock   (untuk uji coba tanpa akun broker)
-```
+- **Kripto (BTCUSDT, ETHUSDT, SOLUSDT)** — connect **langsung dari browser** ke
+  Binance (`wss://stream.binance.com:9443/stream?streams=...@depth20@100ms/...@aggTrade`),
+  **tanpa lewat bridge sama sekali**. Binance publik & ramah WS langsung dari
+  browser, jadi tidak butuh perantara — persis seperti app Order Flow Roadmap.
+  Menjalankannya lewat bridge cuma menambah hop yang bisa bikin lambat/gagal
+  kalau bridge sedang sibuk dengan koneksi lain, padahal tidak perlu.
+- **Metal/Forex/Indeks (9 pair sisanya)** — wajib lewat `bridge.mjs` (tidak ada
+  perubahan pada file bridge), karena cTrader tidak bisa diakses langsung dari
+  browser:
+  ```
+  ws://localhost:8787?symbol=XAUUSD                (source=auto → cTrader)
+  ws://localhost:8787?symbol=XAUUSD&source=mock     (untuk uji coba tanpa akun broker)
+  ```
+  Pesan yang dikonsumsi (format persis dari `bridge.mjs`):
+  ```json
+  {"type":"meta","symbol":"XAUUSD","source":"ctrader:NamaBroker","digits":2,"tickSize":0.01,"hasTape":false}
+  {"type":"trade","ts":1723459200000,"price":2382.28,"size":1,"side":"buy","inferred":true}
+  {"type":"status","state":"live","message":"..."}
+  ```
 
-Pesan yang dikonsumsi (format persis dari `bridge.mjs`):
-```json
-{"type":"meta","symbol":"XAUUSD","source":"ctrader:NamaBroker","digits":2,"tickSize":0.01,"hasTape":false}
-{"type":"trade","ts":1723459200000,"price":2382.28,"size":1,"side":"buy","inferred":true}
-{"type":"status","state":"live","message":"..."}
-```
-`liquidity-flow-checklist.html` membuka **12 koneksi** (satu per pair roadmap),
-membangun candle M1/M5 dari event `trade` setiap koneksi, dan menjalankan satu
+`liquidity-flow-checklist.html` membuka **12 koneksi** (3 langsung ke Binance,
+9 lewat bridge), membangun candle M1/M5 dari setiap tick, dan menjalankan satu
 instance mesin §3 per pair — semuanya berjalan paralel di scanner grid.
 
 Cara pakai:
 1. Jalankan bridge seperti biasa (`node bridge.mjs`, atau lewat
-   `bridge-launcher.ps1` yang sudah ada).
-2. Buka `liquidity-flow-checklist.html` di browser — otomatis mencoba
-   menyambung ke `ws://localhost:8787` untuk 12 pair.
+   `bridge-launcher.ps1` di proyek "Order Flow Bridge" — file itu sengaja
+   tidak ikut di repo ini, lihat README).
+2. Buka `liquidity-flow-checklist.html` di browser — kripto langsung jalan
+   walau bridge belum menyala; 9 pair sisanya otomatis mencoba menyambung ke
+   `ws://localhost:8787`.
 3. Pair yang simbolnya belum ada di broker Anda (lihat catatan alias di
    `bridge.mjs`) akan menunjukkan status error per pair, tanpa mengganggu
    pair lain.
+
+### 6.1 Backfill candle historis (kripto)
+
+Begitu tersambung, kripto langsung menarik **histori candle nyata** lewat REST
+publik Binance (`GET /api/v3/klines`, tanpa API key) — ±3 jam M1 dan ±16 jam M5
+— dan menyuntikkannya ke aggregator sebelum tick live pertama datang. Efeknya:
+ATR, bias, dan liquidity map langsung terisi begitu tersambung, tidak perlu
+menunggu candle terbentuk dari nol. Candle historis tidak pernah menimpa candle
+yang sudah terbentuk dari tick live (dicek per-timestamp) dan candle terakhir
+dari REST (yang belum tentu closed) selalu dibuang, biar tick live yang
+melanjutkan candle itu sendiri.
+
+Metal/Forex/Indeks **belum** dapat backfill historis — cTrader Open API punya
+endpoint trendbar historis (`ProtoOAGetTrendbarsReq`), tapi itu perlu
+`bridge.mjs` diperluas untuk meneruskannya (di luar cakupan file ini yang
+sengaja mandiri/tanpa mengubah bridge). Lihat §7.
 
 ---
 
 ## 7. Yang sengaja belum dikerjakan di V1.1
 
+- **Backfill historis untuk Metal/Forex/Indeks** — butuh `bridge.mjs`
+  diperluas dengan `ProtoOAGetTrendbarsReq`/`Res` (payload type cTrader utk
+  trendbar) dan satu jenis pesan baru di protokol klien↔bridge
+  (`{"type":"history_req"}` → `{"type":"history_res","candles":[...]}`).
+  Kripto sudah dapat ini lewat Binance REST (§6.1).
 - Multi-timeframe confluence di luar M1/M5 (H1 bias, dst.) — bisa ditambah
   sebagai filter tambahan, tidak mengubah gate inti.
 - Liquidity Density dari order book L2 (bukan hanya swing point harga) —
