@@ -226,6 +226,25 @@
 </div>
 
 <script>
+// Auto-reload dev: cuma aktif kalau dibuka lewat server lokal (http://), BUKAN file:// --
+// supaya tidak mengganggu kalau file ini dibuka langsung dobel-klik dari Explorer/Downloads.
+// Cek header Last-Modified tiap 2 detik; begitu berubah (ada update baru ditulis ke disk),
+// halaman refresh sendiri. Lihat serve.mjs + "Buka Live Preview.vbs" utk cara menjalankannya.
+if(location.protocol==='http:'||location.protocol==='https:'){
+  let lastMod = null;
+  setInterval(()=>{
+    fetch(location.pathname, { method:'HEAD', cache:'no-store' })
+      .then(res=>{
+        const mod = res.headers.get('Last-Modified');
+        if(lastMod && mod && mod!==lastMod) location.reload();
+        lastMod = mod;
+      })
+      .catch(()=>{}); // server sempat mati/reconnect -- diamkan saja, coba lagi 2 detik berikutnya
+  }, 2000);
+}
+</script>
+
+<script>
 (function(){
 "use strict";
 

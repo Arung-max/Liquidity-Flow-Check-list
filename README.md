@@ -35,3 +35,24 @@ blueprint §6.1–6.2 untuk detail protokolnya.
 
 Buka `liquidity-flow-checklist.html` langsung di browser (dobel klik, atau lewat
 `file://`) — tidak perlu server statis.
+
+## Live preview dengan auto-reload (opsional, buat yang lagi ikut kembangkan)
+
+Kalau lagi memantau pembaruan (mis. lewat Claude Code) dan ingin browser Anda
+otomatis me-refresh sendiri setiap ada perubahan di file — tanpa perlu dibuka
+ulang manual tiap kali:
+
+1. Dobel-klik **`Buka Live Preview.vbs`** (sekali saja). Ini menyalakan
+   `serve.mjs` (server statis kecil, `http://localhost:8850`) dan membuka
+   `liquidity-flow-checklist.html` lewat alamat itu — **bukan** `file://`.
+2. Biarkan tab itu tetap terbuka. Halaman mengecek tiap 2 detik apakah file-nya
+   berubah di disk (lewat header `Last-Modified`); begitu berubah, tab
+   refresh sendiri.
+3. Server-nya jalan di latar belakang (hidden) sampai komputer dimatikan atau
+   prosesnya dihentikan manual. Dobel-klik lagi kapan pun aman — kalau server
+   sudah jalan, percobaan kedua langsung keluar sendiri tanpa bentrok
+   (lihat `serve.mjs`), cuma browser-nya yang dibuka ulang.
+
+Auto-reload ini **cuma aktif kalau dibuka lewat `http://localhost:8850`**;
+membuka file ini langsung lewat `file://` (dobel klik biasa dari Explorer)
+tetap berfungsi normal seperti biasa, tanpa auto-reload.
