@@ -165,7 +165,12 @@
   .timeline::-webkit-scrollbar-thumb{background:var(--panel3);border-radius:8px;}
 
   canvas#chart{width:100%;height:clamp(360px,54vh,620px);display:block;border-radius:var(--radius-sm);
-    background:#080B10;border:1px solid var(--line-soft);}
+    background:#080B10;border:1px solid var(--line-soft);cursor:grab;touch-action:none;}
+  canvas#chart:active{cursor:grabbing;}
+  .btn-live{background:var(--blue);border:none;color:#06121F;font-weight:700;font-size:10.5px;
+    padding:3px 10px;border-radius:20px;cursor:pointer;font-family:inherit;}
+  .btn-live:hover{filter:brightness(1.1);}
+  .chart-hint{color:var(--mut2);font-size:10px;margin-top:6px;text-align:center;}
   .chart-legend{display:flex;gap:14px;margin-top:10px;font-size:10.5px;color:var(--mut);flex-wrap:wrap;
     padding-top:8px;border-top:1px dashed var(--line-soft);}
   .chart-legend span{display:inline-flex;align-items:center;gap:5px;}
@@ -850,7 +855,11 @@ let ACTIVE_SYM = ASSETS[3].sym; // default: XAUUSD, contoh utama blueprint
 function tickSizeFor(app){ return (app.meta && app.meta.tickSize) || Math.pow(10, -(app.asset.dp||2)); }
 
 function initAsset(asset){
-  const app = { asset, engine:newEngineState(asset), meta:null, connState:'sim', connMsg:'Belum tersambung', conn:null, vwap:newVwapState() };
+  const app = { asset, engine:newEngineState(asset), meta:null, connState:'sim', connMsg:'Belum tersambung', conn:null, vwap:newVwapState(),
+    // Jendela chart per-pair: follow=true selalu ikut candle terbaru; begitu digeser (drag),
+    // follow=false dan endIdx dikunci absolut -- TIDAK ikut maju walau candle baru terus masuk,
+    // sampai user klik dua kali / tombol "kembali ke live".
+    chartView: { follow:true, endIdx:0, count:90 } };
   app.m1Agg = makeAggregator(CFG.m1Sec, 1500, ()=>{ recompute(app); });
   app.m5Agg = makeAggregator(CFG.m5Sec, 800, null);
   APP[asset.sym] = app;
@@ -1001,16 +1010,69 @@ function zoneColor(type, volStrength){
   return 'rgba('+rgb+','+(0.10+t*0.55).toFixed(3)+')';
 }
 
-function drawChart(canvas, m1, eng, dp){
+/* --------------------------- INTERAKSI CHART (zoom + geser) --------------------------- */
+// Canvas #chart DIGANTI (innerHTML) tiap render (~1x/detik) -- kalau mousemove/mouseup dipasang
+// per-canvas, listener lama menumpuk tiap render (canvas lama dibuang tapi listener globalnya
+// tidak pernah lepas). Makanya drag-state disimpan GLOBAL dan mousemove/mouseup cuma dipasang
+// SEKALI di bootstrap (lihat attachChartDragOnce), membaca APP[ACTIVE_SYM] yang selalu terbaru.
+// wheel/mousedown/dblclick aman dipasang ulang tiap render lewat properti (bukan addEventListener)
+// karena otomatis ikut terbuang bersama canvas lamanya -- tidak ada listener nyasar.
+const DRAG = { active:false, startX:0, startEndIdx:0, startTotal:0 };
+
+function attachChartDragOnce(){
+  window.addEventListener('mousemove', (e)=>{
+    if(!DRAG.active) return;
+    const app = APP[ACTIVE_SYM]; const canvas = document.getElementById('chart');
+    if(!app || !canvas) return;
+    const view = app.chartView;
+    const cw = canvas.clientWidth / Math.max(view.count,1);
+    const shiftBars = Math.round(-(e.clientX-DRAG.startX) / Math.max(cw,0.0001));
+    view.endIdx = clamp(DRAG.startEndIdx + shiftBars, view.count, DRAG.startTotal);
+    view.follow = false;
+  });
+  window.addEventListener('mouseup', ()=>{
+    if(!DRAG.active) return;
+    DRAG.active = false;
+    const canvas = document.getElementById('chart'); if(canvas) canvas.style.cursor='grab';
+  });
+}
+
+function wireChartInteraction(canvas, app){
+  canvas.onwheel = (e)=>{
+    e.preventDefault();
+    const view = app.chartView; const total = app.m1Agg.series().length;
+    const factor = e.deltaY>0 ? 1.15 : 1/1.15;
+    view.count = Math.round(clamp(view.count*factor, 15, Math.max(15, Math.min(1500,total))));
+    if(!view.follow) view.endIdx = clamp(view.endIdx, view.count, total);
+  };
+  canvas.onmousedown = (e)=>{
+    const view = app.chartView; const total = app.m1Agg.series().length;
+    DRAG.active = true; DRAG.startX = e.clientX; DRAG.startTotal = total;
+    DRAG.startEndIdx = view.follow ? total : view.endIdx;
+    canvas.style.cursor = 'grabbing';
+  };
+  canvas.ondblclick = ()=>{ app.chartView.follow = true; };
+}
+
+function drawChart(canvas, m1, eng, dp, view){
   const ctx = canvas.getContext('2d');
   const w = canvas.width = canvas.clientWidth * devicePixelRatio;
   const h = canvas.height = canvas.clientHeight * devicePixelRatio;
   ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
   const W=canvas.clientWidth, H=canvas.clientHeight;
   ctx.clearRect(0,0,W,H);
-  const data = m1.slice(-90);
-  if(data.length<2) { ctx.fillStyle='#4E5867'; ctx.font='12px sans-serif'; ctx.fillText('Menunggu data candle…',10,20); return; }
-  const zoneSrc = m1.slice(-520);
+  const total = m1.length;
+  if(total<2) { ctx.fillStyle='#4E5867'; ctx.font='12px sans-serif'; ctx.fillText('Menunggu data candle…',10,20); return; }
+  // Jendela candle yang tampak: `view.count` lebar, berakhir di `view.endIdx` (atau ikut ujung
+  // terbaru selama view.follow=true). Begitu digeser (lihat wireChartInteraction), follow=false
+  // dan endIdx dikunci -- tidak ikut maju walau candle baru terus masuk lewat tick live.
+  const count = Math.max(15, Math.min(view.count, total));
+  if(view.follow) view.endIdx = total;
+  let endIdx = Math.min(Math.max(view.endIdx, count), total);
+  if(endIdx>=total) view.follow = true; // sudah digeser sampai ujung -> otomatis balik ke mode live
+  const startIdx = endIdx - count;
+  const data = m1.slice(startIdx, endIdx);
+  const zoneSrc = m1.slice(Math.max(0, startIdx-430), endIdx);
   const zoneOffset = zoneSrc.length - data.length;
   const visibleZones = computeLiquidityZones(zoneSrc).filter(z => (z.idxEnd - zoneOffset) >= 0);
   // Skala harga hanya mengikuti zona yang TITIK AWALnya ada di jendela candle yang tampak --
@@ -1139,9 +1201,11 @@ function renderDetail(){
           + '<b class="price-val'+flashCls+'">'+fmt(eng.price,asset.dp)+'</b>'
           + '<span class="bias-chip" style="color:'+(eng.bias==='BULLISH'?'var(--green)':eng.bias==='BEARISH'?'var(--red)':'var(--mut)')+'">'+eng.bias+'</span>'
           + conn + ' &nbsp; ' + (app.connMsg||'')
+          + (app.chartView.follow ? '' : '<button class="btn-live" id="btnBackLive">▶ Kembali ke Live</button>')
         + '</span>'
       + '</h3>'
       + '<canvas id="chart"></canvas>'
+      + '<div class="chart-hint">Scroll = zoom &nbsp;·&nbsp; Geser (klik+tahan+tarik) = lihat histori &nbsp;·&nbsp; Klik dua kali = kembali ke live</div>'
       + '<div class="chart-legend">'
         + '<span><i style="background:#4E5867"></i>Liquidity eksternal</span>'
         + '<span><i style="background:#E8B94A"></i>Internal liquidity</span>'
@@ -1209,7 +1273,12 @@ function renderDetail(){
     + '</div>';
 
   const canvas = document.getElementById('chart');
-  if(canvas) drawChart(canvas, app.m1Agg.series(), eng, asset.dp);
+  if(canvas){
+    wireChartInteraction(canvas, app);
+    drawChart(canvas, app.m1Agg.series(), eng, asset.dp, app.chartView);
+  }
+  const btnBackLive = document.getElementById('btnBackLive');
+  if(btnBackLive) btnBackLive.addEventListener('click', ()=>{ app.chartView.follow = true; renderAll(); });
 }
 
 function st_range(eng){ return eng.range; }
@@ -1224,6 +1293,7 @@ function renderAll(){
 /* ================================= 8. BOOTSTRAP ================================= */
 
 ASSETS.forEach(initAsset);
+attachChartDragOnce();
 document.getElementById('btnReconnectAll').addEventListener('click', startConnections);
 startConnections();
 renderAll();

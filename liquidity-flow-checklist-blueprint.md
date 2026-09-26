@@ -319,6 +319,29 @@ trendbar (`low`, `deltaOpen/High/Close`, `utcTimestampInMinutes`, `volume`)
 dan format `period` sebagai string ("M1"/"M5") terbukti benar sesuai
 dokumentasi resmi cTrader.
 
+### 6.3 Interaksi chart: zoom & geser (pan)
+
+Chart tidak lagi terkunci ke "90 candle terakhir" — lebar candle tidak pernah
+menumpuk/mengecil tanpa batas karena jendela yang tampak selalu dibatasi
+`chartView.count` (default 90), tapi sekarang jendela itu bisa digeser:
+
+- **Scroll** di atas chart = zoom in/out (`chartView.count` mengecil/membesar,
+  dibatasi 15–1500 candle atau sebanyak yang tersedia).
+- **Klik + tahan + tarik** = geser ke histori lama. Begitu digeser,
+  `chartView.follow` jadi `false` dan jendela terkunci pada posisi absolut itu
+  — candle baru yang terus masuk lewat tick live TIDAK memaksa geser balik
+  (supaya tidak mengganggu saat sedang meninjau histori). Tombol
+  **"▶ Kembali ke Live"** muncul otomatis di judul chart selama tidak
+  mengikuti live; klik dua kali di chart juga langsung kembali ke live.
+- Tiap pair (di `APP[sym].chartView`) punya jendela sendiri-sendiri —
+  pindah pair lalu kembali tidak mereset posisi geser/zoom pair sebelumnya.
+
+Catatan implementasi: elemen `<canvas id="chart">` diganti (innerHTML) tiap
+render (~1x/detik), jadi listener `mousemove`/`mouseup` untuk drag sengaja
+dipasang **sekali** di level `window` saat bootstrap (bukan per-canvas) —
+kalau dipasang per-canvas, listener lama menumpuk tiap render karena canvas
+lamanya dibuang tapi listeker globalnya tidak pernah lepas.
+
 ---
 
 ## 7. Yang sengaja belum dikerjakan di V1.1
