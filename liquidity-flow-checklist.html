@@ -409,21 +409,37 @@ function makeAggregator(periodSec, cap, onClose){
 async function fetchBinanceKlines(sym, interval, limit){
   const url = `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${interval}&limit=${limit}`;
   const res = await fetch(url);
-  if(!res.ok) throw new Error('klines '+res.status);
+  if(!res.ok){
+    // 429/418 = kena rate-limit Binance (terlalu sering request dari IP yg sama dlm waktu singkat).
+    // Dicatat jelas di console -- sebelumnya errornya ditelan diam-diam, jadi tidak kelihatan
+    // kenapa backfill gagal begitu banyak pair kripto reload berulang dlm sesi pengujian.
+    let detail = ''; try{ detail = (await res.text()).slice(0,200); }catch(e){}
+    throw new Error(`Binance klines ${sym} ${interval} -> HTTP ${res.status}${detail?(' '+detail):''}`);
+  }
   const rows = await res.json();
   // format kline Binance: [openTime, open, high, low, close, volume, closeTime, ...]
   // Candle TERAKHIR dari REST masih "berjalan" (belum tentu closed) -- dibuang, biar tick live yang
   // melanjutkan candle itu sendiri lewat push(), supaya tidak ada bar duplikat/setengah-jadi.
   return rows.slice(0, -1).map(r => ({ t:r[0], o:+r[1], h:+r[2], l:+r[3], c:+r[4], v:+r[5] }));
 }
-async function backfillBinance(asset){
+async function backfillBinance(asset, retried){
   try {
     const [m1, m5] = await Promise.all([
       fetchBinanceKlines(asset.sym, '1m', 180), // ~3 jam
       fetchBinanceKlines(asset.sym, '5m', 200), // ~16 jam (cukup utk lookback M5 §4.3)
     ]);
     return { m1, m5 };
-  } catch(e){ return null; } // gagal backfill bukan fatal -- live tick tetap membangun dari 0 seperti biasa
+  } catch(e){
+    console.error('[backfill]', e.message, '-- lihat tab Network di DevTools (F12) utk detail HTTP-nya.');
+    if(!retried){
+      // Satu kali coba ulang stlh jeda singkat -- kalau cuma gangguan sesaat (bukan rate-limit
+      // panjang), ini biasanya cukup. Kalau gagal lagi, menyerah dgn baik (bukan fatal, live
+      // tick tetap membangun candle dari 0 seperti biasa).
+      await new Promise(r=>setTimeout(r, 4000));
+      return backfillBinance(asset, true);
+    }
+    return null;
+  }
 }
 
 /* ------------------------------- VWAP SESI ------------------------------- */
