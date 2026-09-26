@@ -281,20 +281,39 @@ yang sudah terbentuk dari tick live (dicek per-timestamp) dan candle terakhir
 dari REST (yang belum tentu closed) selalu dibuang, biar tick live yang
 melanjutkan candle itu sendiri.
 
-Metal/Forex/Indeks **belum** dapat backfill historis — cTrader Open API punya
-endpoint trendbar historis (`ProtoOAGetTrendbarsReq`), tapi itu perlu
-`bridge.mjs` diperluas untuk meneruskannya (di luar cakupan file ini yang
-sengaja mandiri/tanpa mengubah bridge). Lihat §7.
+### 6.2 Backfill candle historis (Metal/Forex/Indeks — `bridge.mjs` diperluas)
+
+`bridge.mjs` sekarang juga mengirim histori lewat trendbar cTrader
+(`ProtoOAGetTrendbarsReq`/`Res`, payload type 2137/2138). Begitu simbol
+resolve, bridge otomatis meminta ±180 bar M1 dan ±200 bar M5 (tanpa diminta
+klien — murni tambahan di jalur yang sudah ada, tidak ada pesan baru dari
+klien ke bridge) dan meneruskannya sebagai:
+```json
+{"type":"history","symbol":"XAUUSD","period":"M1","candles":[{"t":..,"o":..,"h":..,"l":..,"c":..,"v":..}]}
+```
+Trendbar cTrader dikodekan sebagai `low` + delta (`deltaOpen/deltaHigh/deltaClose`,
+semua berskala `PRICE_DIV=100000` sama seperti kuotasi spot) dan timestamp
+dalam **menit** (`utcTimestampInMinutes`) — bridge yang mengonversi ke bentuk
+candle biasa sebelum diteruskan.
+
+Ini fitur pelengkap, sengaja **tanpa** `waitFor`/timeout: kalau broker tidak
+menjawab atau format request meleset, jalur live (spot+depth) tetap jalan
+normal — `ERROR_RES` hanya dianggap gagal-histori (bukan mematikan status
+LIVE) selama masih ada permintaan histori yang menunggu balasan.
+
+**Sudah diuji** end-to-end lewat `mock-ctrader.mjs` (server broker tiruan
+juga diperluas untuk membalas trendbar sintetis) — protokol klien↔bridge↔mock
+terbukti nyambung. **Belum diuji** terhadap server cTrader sungguhan (nama
+field & format enum `period` diambil dari dokumentasi/memori, bukan hasil
+observasi langsung) — kemungkinan perlu penyesuaian kecil begitu dicoba saat
+market buka dengan akun broker asli. Kalau ada `ERROR_RES` utk histori, cek
+log bridge (`Histori M1 gagal -> ...`) untuk detail errorCode/description
+dari broker.
 
 ---
 
 ## 7. Yang sengaja belum dikerjakan di V1.1
 
-- **Backfill historis untuk Metal/Forex/Indeks** — butuh `bridge.mjs`
-  diperluas dengan `ProtoOAGetTrendbarsReq`/`Res` (payload type cTrader utk
-  trendbar) dan satu jenis pesan baru di protokol klien↔bridge
-  (`{"type":"history_req"}` → `{"type":"history_res","candles":[...]}`).
-  Kripto sudah dapat ini lewat Binance REST (§6.1).
 - Multi-timeframe confluence di luar M1/M5 (H1 bias, dst.) — bisa ditambah
   sebagai filter tambahan, tidak mengubah gate inti.
 - Liquidity Density dari order book L2 (bukan hanya swing point harga) —

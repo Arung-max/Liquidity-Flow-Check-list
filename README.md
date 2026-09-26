@@ -27,5 +27,11 @@ Aplikasi ini butuh sumber data live yang berjalan terpisah:
 Kalau bridge belum aktif, pair-pair itu otomatis jatuh ke status SIM/ERROR tanpa
 mengganggu pair kripto yang lain.
 
+Begitu tersambung, kripto & pair lewat bridge sama-sama langsung menarik histori
+candle (bukan mulai dari nol) — kripto lewat REST Binance, pair lainnya lewat
+histori trendbar cTrader yang diteruskan bridge. Fitur bridge ini butuh
+`bridge.mjs` versi yang sudah mendukung `GET_TRENDBARS_REQ`/`RES`; lihat
+blueprint §6.1–6.2 untuk detail protokolnya.
+
 Buka `liquidity-flow-checklist.html` langsung di browser (dobel klik, atau lewat
 `file://`) — tidak perlu server statis.

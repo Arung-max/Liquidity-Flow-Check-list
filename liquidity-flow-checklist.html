@@ -778,6 +778,7 @@ function connectBridge(asset, baseUrl, sourceMode, callbacks){
       let m; try{ m=JSON.parse(ev.data); } catch(e){ return; }
       if(m.type==='meta') callbacks.onMeta(m);
       else if(m.type==='trade') callbacks.onTrade(m);
+      else if(m.type==='history') callbacks.onHistory && callbacks.onHistory(m.period, m.candles);
       else if(m.type==='status'){
         if(m.state==='live') callbacks.onStatus('live', m.message||'');
         else if(m.state==='error') callbacks.onStatus('error', m.message||'');
@@ -882,6 +883,14 @@ function startConnections(){
       onBackfill:(m1,m5)=>{
         if(m1 && m1.length) app.m1Agg.seed(m1);
         if(m5 && m5.length) app.m5Agg.seed(m5);
+        recompute(app);
+      },
+      // Backfill histori dari bridge.mjs (cTrader GetTrendbars, dikirim per-period -> dipanggil 2x).
+      onHistory:(period, candles)=>{
+        if(!candles || !candles.length) return;
+        if(period==='M1') app.m1Agg.seed(candles);
+        else if(period==='M5') app.m5Agg.seed(candles);
+        else return;
         recompute(app);
       },
     };
