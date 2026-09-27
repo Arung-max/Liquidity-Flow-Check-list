@@ -202,6 +202,36 @@
   .setting-row input[type="number"],.setting-row select{background:var(--panel3);border:1px solid var(--line);
     color:var(--text);padding:5px 8px;border-radius:6px;font:12px var(--mono);width:140px;}
   .setting-row input[type="checkbox"]{width:16px;height:16px;accent-color:var(--blue);}
+
+  .modal-panel.wide{width:min(1100px,96vw);}
+  .tabbar{display:flex;gap:2px;padding:0 18px;border-bottom:1px solid var(--line);background:var(--panel);}
+  .tab-btn{background:transparent;border:none;color:var(--mut);padding:10px 14px;cursor:pointer;
+    font-size:12px;border-bottom:2px solid transparent;transition:color .15s ease,border-color .15s ease;
+    font-family:inherit;}
+  .tab-btn:hover{color:var(--text);}
+  .tab-btn.active{color:var(--text);border-bottom-color:var(--blue);font-weight:700;}
+  .banner{border-radius:8px;padding:9px 12px;font-size:11.5px;margin-bottom:12px;line-height:1.5;}
+  .banner.info{background:#101A28;border:1px solid #1C3350;color:var(--mut);}
+  .banner.warn{background:#251A0B;border:1px solid #4A3413;color:var(--yellow);}
+  .banner.bad{background:#301418;border:1px solid #4A2027;color:var(--red);}
+  .an-table{width:100%;border-collapse:collapse;font-size:11.5px;}
+  .an-table th{text-align:left;color:var(--mut2);font-weight:600;font-size:10px;text-transform:uppercase;
+    letter-spacing:.04em;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap;}
+  .an-table td{padding:6px 8px;border-bottom:1px solid var(--line-soft);white-space:nowrap;}
+  .an-table tr.clickable{cursor:pointer;}
+  .an-table tr.clickable:hover{background:var(--panel2);}
+  .an-section{margin-bottom:18px;}
+  .an-section h4{margin:0 0 8px;font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;}
+  .an-stat-row{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:14px;}
+  .an-stat{background:var(--panel3);border:1px solid var(--line);border-radius:8px;padding:8px 14px;min-width:110px;}
+  .an-stat .lb{color:var(--mut2);font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:3px;}
+  .an-stat .v{font-family:var(--mono);font-weight:700;font-size:15px;}
+  .an-badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:9.5px;font-weight:700;
+    letter-spacing:.02em;}
+  .an-badge.live{background:#0F2C1E;color:var(--green);}
+  .an-badge.dry{background:#1B212B;color:var(--mut);}
+  .an-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
+  .an-tools label{font-size:11.5px;color:var(--mut);display:flex;align-items:center;gap:5px;}
   @media (max-width:1000px){ .detail{grid-template-columns:1fr;} .scanner{width:280px;flex:0 0 280px;} }
   @media (max-width:760px){
     .layout{flex-direction:column;}
@@ -229,6 +259,7 @@
     </div>
     <button class="btn primary" id="btnReconnectAll">Sambungkan Semua</button>
     <button class="btn" id="btnCalibration">⚙ Kalibrasi</button>
+    <button class="btn" id="btnAnalysis">📊 Analisis Pasar</button>
     <div class="spacer"></div>
     <div class="field" id="globalStatus" style="color:var(--mut)">Belum tersambung</div>
   </div>
@@ -257,8 +288,35 @@
     <div class="modal-body" id="settingsBody"></div>
     <div class="modal-ft">
       <button class="btn" id="btnResetSettings">Kembalikan ke Default</button>
+      <button class="btn" id="btnPreviewImpact">🔍 Pratinjau Dampak</button>
       <div class="spacer"></div>
       <button class="btn primary" id="btnApplySettings">Terapkan &amp; Hitung Ulang Semua</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="analysisOverlay" style="display:none">
+  <div class="modal-panel wide">
+    <div class="modal-hd">
+      <h2>📊 Analisis Pasar &amp; Dukungan Keputusan</h2>
+      <button class="btn" id="btnCloseAnalysis">✕</button>
+    </div>
+    <div class="tabbar">
+      <button class="tab-btn active" data-tab="overview">Ringkasan Pasar</button>
+      <button class="tab-btn" data-tab="hypothesis">Uji Hipotesis</button>
+      <button class="tab-btn" data-tab="calib">Dampak Kalibrasi</button>
+      <button class="tab-btn" data-tab="journal">Jurnal Hasil</button>
+    </div>
+    <div id="analysisFirstRunBanner" class="banner info" style="display:none;margin:12px 18px 0;">
+      Panel ini observasional: membaca kondisi mesin &amp; mensimulasikan ulang histori candle yg sudah
+      ada (jam-hari, bukan tahunan) — bukan sinyal trading, bukan backtest yg valid secara statistik.
+      <button class="btn" id="btnDismissFirstRunBanner" style="margin-left:10px;padding:2px 8px;font-size:10px;">Mengerti</button>
+    </div>
+    <div class="modal-body" id="analysisBody"></div>
+    <div class="modal-ft">
+      <span style="color:var(--mut2);font-size:10.5px;">Alat observasional, sample data terbatas — bukan sinyal beli/jual otomatis dan bukan nasihat investasi.</span>
+      <div class="spacer"></div>
+      <button class="btn" id="btnCloseAnalysis2">Tutup</button>
     </div>
   </div>
 </div>
@@ -641,7 +699,7 @@ function newEngineState(asset){
     fvg:null,                // {ts, top, bottom, dir, filled}
     fvgSearchFrom:null,      // kursor FVG yg sudah ditolak (terisi/timeout) -- cegah temu-ulang gap yg SAMA (§6)
     retest:null,             // {ts, rejected}
-    sl:null, tp:null, rr:null,
+    sl:null, tp:null, rr:null, entryPrice:null,
     timeline:[],
     lastUpdate:0,
     // --- V1.2.1 ---
@@ -665,7 +723,7 @@ function resetHypothesis(st, keepExternal){
   st.activeSweep=null; st.postSweepState=null; st.postSweepSince=null; st.range=null;
   st.atrRef=null; st.compression=false;
   st.internalLiquidity=null; st.secondSweep=null; st.displacement=null; st.mss=null;
-  st.mssSearchFrom=null; st.fvg=null; st.fvgSearchFrom=null; st.retest=null; st.sl=null; st.tp=null; st.rr=null;
+  st.mssSearchFrom=null; st.fvg=null; st.fvgSearchFrom=null; st.retest=null; st.sl=null; st.tp=null; st.rr=null; st.entryPrice=null;
   st.hypothesisSince=null; st.secondSweepRetries=0;
   if(!keepExternal) st.externalLiquidity={above:null,below:null};
   // sweptExternal & invalidLevel SENGAJA tidak direset di sini -- keduanya memori lintas-hipotesis
@@ -921,7 +979,13 @@ function computeRR(tp, entry, sl, dir){
 }
 
 // Satu langkah mesin dipanggil setiap kali candle M1 baru DITUTUP.
-function stepEngine(st, m1, m5, ticksize){
+// hook (opsional): dipanggil hook({type,...}) di titik-titik siklus hidup hipotesis/trade (lihat
+// dokumentasi di tiap pushTimeline terkait) -- dipakai panel Analisis utk jurnal & simulasi, TIDAK
+// mengubah gerbang/logic apa pun (no-op kalau tidak dioper). settings (opsional): parameter
+// kalibrasi yg dipakai langkah ini -- fallback ke SETTINGS aktif (live) kalau tidak dioper, supaya
+// semua call-site lama (live/backfill) berperilaku identik tanpa perubahan.
+function stepEngine(st, m1, m5, ticksize, hook, settings){
+  settings = settings || SETTINGS;
   if(m1.length<5) return;
   const last = m1[m1.length-1];
   st.price = last.c; st.lastUpdate = Date.now();
@@ -978,13 +1042,13 @@ function stepEngine(st, m1, m5, ticksize){
     if(!approachMomentumOk(m1, dir)){ setStatus(st, T.status.OBSERVE); return; }
 
     setStatus(st, T.status.DEVELOPING);
-    st.activeSweep = evaluateSweep(null, level, dir, m1, st.atr, ticksize, SETTINGS);
+    st.activeSweep = evaluateSweep(null, level, dir, m1, st.atr, ticksize, settings);
     return;
   }
 
   // 1b) Sweep sudah dilacak tapi belum final: teruskan evaluasi SETIAP candle sampai VALID atau FAILED.
   if(st.activeSweep.state==='WAITING' || st.activeSweep.state==='PARTIAL'){
-    st.activeSweep = evaluateSweep(st.activeSweep, st.activeSweep.level, st.activeSweep.dir, m1, st.atr, ticksize, SETTINGS);
+    st.activeSweep = evaluateSweep(st.activeSweep, st.activeSweep.level, st.activeSweep.dir, m1, st.atr, ticksize, settings);
     if(st.activeSweep.state==='VALID'){
       const dir0 = st.activeSweep.dir;
       // V1.2.1 (audit C3): catat level ini sbg sudah tersapu, supaya §1a tidak memilihnya lagi.
@@ -998,6 +1062,7 @@ function stepEngine(st, m1, m5, ticksize){
       setStatus(st, T.status.WAIT);
       st.postSweepSince = st.activeSweep.reclaimTs;
       st.hypothesisSince = st.activeSweep.reclaimTs; // V1.2.1: jangkar kedaluwarsa hipotesis (lihat di bawah)
+      hook && hook({ type:'hypothesis_started', sym:st.asset.sym, dir:dir0, level:st.activeSweep.level, sl:st.sl, tp:st.tp, ts:last.t });
     }
     return;
   }
@@ -1013,6 +1078,7 @@ function stepEngine(st, m1, m5, ticksize){
     const invalid = dir==='above' ? last.h >= st.sl : last.l <= st.sl;
     if(invalid){
       pushTimeline(st, `INVALID — harga menembus SL @ ${fmt(st.sl,4)}`, 'inv', last.t);
+      hook && hook({ type:'hypothesis_failed', reason:'sl_invalidated', sym:st.asset.sym, dir, sl:st.sl, ts:last.t });
       resetHypothesis(st, false);
       setStatus(st, T.status.INVALID);
       return;
@@ -1029,8 +1095,11 @@ function stepEngine(st, m1, m5, ticksize){
     const ageMin = st.retest ? (last.t-st.retest.ts)/60000 : Infinity;
     const timedOut = ageMin > CFG.tradeMaxAgeMinutes;
     if(hitSL || hitTP || timedOut){
-      const outcome = hitSL ? 'SL tersentuh' : hitTP ? 'TP tersentuh' : 'time-stop';
-      pushTimeline(st, `Trade selesai — ${outcome} @ ${fmt(last.c,4)}`, hitTP?'ok':'inv', last.t);
+      const outcomeLabel = hitSL ? 'SL tersentuh' : hitTP ? 'TP tersentuh' : 'time-stop';
+      pushTimeline(st, `Trade selesai — ${outcomeLabel} @ ${fmt(last.c,4)}`, hitTP?'ok':'inv', last.t);
+      hook && hook({ type:'trade_closed', sym:st.asset.sym, dir, entryPrice:st.entryPrice,
+        confirmedTs: st.retest?st.retest.ts:null, sl:st.sl, tp:st.tp, rrPlanned:st.rr,
+        exitPrice:last.c, closedTs:last.t, outcome: hitSL?'SL':hitTP?'TP':'TIMEOUT' });
       resetHypothesis(st, false);
       setStatus(st, T.status.OBSERVE);
     }
@@ -1045,6 +1114,7 @@ function stepEngine(st, m1, m5, ticksize){
     const ageMin = (last.t - st.hypothesisSince)/60000;
     if(ageMin > CFG.hypothesisMaxAgeMinutes || st.secondSweepRetries > CFG.secondSweepMaxRetries){
       pushTimeline(st, `EXPIRED — hipotesis basi (${ageMin>CFG.hypothesisMaxAgeMinutes?'>'+CFG.hypothesisMaxAgeMinutes+' menit':'terlalu banyak retry second sweep'}), reset`, 'inv', last.t);
+      hook && hook({ type:'hypothesis_failed', reason:'expired', sym:st.asset.sym, dir, ts:last.t });
       resetHypothesis(st, false);
       setStatus(st, T.status.INVALID);
       return;
@@ -1071,7 +1141,7 @@ function stepEngine(st, m1, m5, ticksize){
     // Jangkar Compression: ATR pertama kali fase range-search ini dimasuki, dipakai sbg pembanding
     // "ATR sebelumnya" -- ditangkap SEKALI (bukan tiap langkah) supaya jadi titik referensi yg stabil.
     if(st.atrRef==null) st.atrRef = st.atr;
-    st.compression = !!(SETTINGS.compressionEnabled && st.atrRef && st.atr < st.atrRef*(SETTINGS.compressionPct/100));
+    st.compression = !!(settings.compressionEnabled && st.atrRef && st.atr < st.atrRef*(settings.compressionPct/100));
     // Sisir dari jendela TERBESAR ke TERKECIL, ambil yg pertama muat di bawah ambang lebar.
     // Lebar range monoton melebar seiring jendela membesar (jendela besar = superset candle dari
     // jendela kecil, jadi hi/lo-nya tidak pernah mengecil) -- artinya kalau jendela kecil TIDAK
@@ -1081,10 +1151,10 @@ function stepEngine(st, m1, m5, ticksize){
     // titik swing utk "equal highs/lows" (terbukti lewat simulasi); window lebih besar (~16-24)
     // punya jauh lebih banyak kandidat swing tanpa mengorbankan makna "range yg sempit".
     let win = null;
-    for(let w=Math.min(SETTINGS.rangeMaxCandles, all.length); w>=SETTINGS.rangeMinCandles; w--){
+    for(let w=Math.min(settings.rangeMaxCandles, all.length); w>=settings.rangeMinCandles; w--){
       const cand = all.slice(-w);
       const hi=Math.max(...cand.map(c=>c.h)), lo=Math.min(...cand.map(c=>c.l));
-      if(hi-lo <= st.atr*SETTINGS.rangeMaxWidthAtr){ win = cand; break; }
+      if(hi-lo <= st.atr*settings.rangeMaxWidthAtr){ win = cand; break; }
     }
     if(win){
       const hi=Math.max(...win.map(c=>c.h)), lo=Math.min(...win.map(c=>c.l));
@@ -1120,7 +1190,7 @@ function stepEngine(st, m1, m5, ticksize){
   // 5) Second sweep (level = internal liquidity, SEKARANG di sisi yg SAMA dgn first sweep)
   if(!st.secondSweep || st.secondSweep.state==='WAITING' || st.secondSweep.state==='PARTIAL'){
     st.secondSweep = evaluateSweep(st.secondSweep, st.internalLiquidity.price, st.internalLiquidity.dir,
-      m1, st.atr, ticksize, SETTINGS);
+      m1, st.atr, ticksize, settings);
     if(st.secondSweep.state==='FAILED'){
       st.secondSweepRetries++;
       pushTimeline(st, 'Second sweep gagal — internal liquidity tak tersapu bersih, coba ulang', 'inv', last.t);
@@ -1155,9 +1225,9 @@ function stepEngine(st, m1, m5, ticksize){
   //    mssSearchFrom sbg kursor yg maju tiap kandidat gagal, kandidat berikutnya tetap dicoba.
   if(!st.mss){
     const searchFrom = st.mssSearchFrom || st.secondSweep.reclaimTs || st.secondSweep.breachTs;
-    const disp = findDisplacement(m1, atrSeries, dir, searchFrom, SETTINGS);
+    const disp = findDisplacement(m1, atrSeries, dir, searchFrom, settings);
     if(disp){
-      const mss = findMSS(m1, disp.ts, dir, SETTINGS);
+      const mss = findMSS(m1, disp.ts, dir, settings);
       if(mss){
         st.displacement = disp; st.mss = mss;
         pushTimeline(st, `Displacement candle terdeteksi (${dir})`, 'ok', last.t);
@@ -1214,12 +1284,14 @@ function stepEngine(st, m1, m5, ticksize){
       const rr = computeRR(st.tp, entry, st.sl, dir);
       if(rr==null || rr < CFG.minRR){
         pushTimeline(st, `Retest tertolak tapi R:R tidak memadai (${rr==null?'TP tidak valid':fmt(rr,2)}) — dibatalkan`, 'inv', last.t);
+        hook && hook({ type:'hypothesis_failed', reason:'rr_insufficient', sym:st.asset.sym, dir, rr, ts:last.t });
         resetHypothesis(st, true);
         setStatus(st, T.status.DEVELOPING);
       } else {
         pushTimeline(st, `RETEST tertolak — SETUP CONFIRMED (R:R ${fmt(rr,2)})`, 'ok', last.t);
         setStatus(st, T.status.CONFIRMED);
-        st.rr = rr;
+        st.rr = rr; st.entryPrice = entry;
+        hook && hook({ type:'confirmed', sym:st.asset.sym, dir, entryPrice:entry, entryTs:last.t, sl:st.sl, tp:st.tp, rr, ts:last.t });
       }
     } else if(st.retest && st.retest.expired){
       // V1.2.1 fix (audit C6/C7): FVG yg sudah terisi >50% atau retest yg tak kunjung terjadi dalam
@@ -1353,7 +1425,7 @@ function initAsset(asset){
 }
 
 function recompute(app){
-  stepEngine(app.engine, app.m1Agg.series(), app.m5Agg.series(), tickSizeFor(app));
+  stepEngine(app.engine, app.m1Agg.series(), app.m5Agg.series(), tickSizeFor(app), liveJournalHook);
 }
 
 // Memutar ulang SELURUH histori candle satu-per-satu lewat stepEngine yang SAMA persis dipakai
@@ -1375,15 +1447,23 @@ function recompute(app){
 //     dimulai jam yg sama dgn candle M1 ke-3/ke-4 di dalamnya belum tentu sudah closed). Sekarang
 //     syaratnya candle M5 itu sudah CLOSED sebelum/tepat saat candle M1 ini closed:
 //     waktu-tutup-M5 (t+300000) <= waktu-tutup-M1-ini (t+60000).
-function replayHistory(app){
-  const m1 = app.m1Agg.closed, m5 = app.m5Agg.closed, tickSize = tickSizeFor(app);
-  app.engine = newEngineState(app.asset);
+// runReplayLoop = primitif murni (tidak menyentuh APP/app.engine) yg dipakai replayHistory (live,
+// di bawah) MAUPUN simulateWithSettings (panel Analisis, §6b) -- badan loop-nya SAMA PERSIS dgn
+// replayHistory versi lama, cuma diekstrak supaya bisa dipanggil dgn engine/hook/settings sendiri
+// tanpa menimpa app.engine yg sedang aktif ditampilkan.
+function runReplayLoop(asset, m1, m5, tickSize, hook, settings){
+  const engine = newEngineState(asset);
   let m5i = 0;
   for(let i=0;i<m1.length;i++){
     const t = m1[i].t;
     while(m5i<m5.length && (m5[m5i].t+300000)<=(t+60000)) m5i++;
-    stepEngine(app.engine, m1.slice(0,i+1), m5.slice(0,m5i), tickSize);
+    stepEngine(engine, m1.slice(0,i+1), m5.slice(0,m5i), tickSize, hook, settings);
   }
+  return engine;
+}
+function replayHistory(app, opts){
+  const m1 = app.m1Agg.closed, m5 = app.m5Agg.closed, tickSize = tickSizeFor(app);
+  app.engine = runReplayLoop(app.asset, m1, m5, tickSize, opts&&opts.hook, opts&&opts.settings);
 }
 
 function startConnections(){
@@ -1456,7 +1536,7 @@ function renderSettingsForm(){
     '<div class="setting-group"><h4>'+g.group+'</h4><div class="desc">'+g.desc+'</div>'
     + g.fields.map(f=>settingsRowHtml(f, SETTINGS_DRAFT)).join('')
     + '</div>'
-  ).join('');
+  ).join('') + '<div id="calibrationPreview">'+calibrationPreviewHtml+'</div>';
   document.getElementById('settingsBody').querySelectorAll('[data-key]').forEach(el=>{
     const key = el.getAttribute('data-key');
     const type = SETTINGS_FIELD_TYPE[key];
@@ -1473,19 +1553,629 @@ function renderSettingsForm(){
 
 function openSettingsModal(){
   SETTINGS_DRAFT = Object.assign({}, SETTINGS);
+  calibrationPreviewHtml = ''; // draft baru dimulai -- preview lama (draft sebelumnya) sudah tidak relevan
+  window.LAST_CALIB_PREVIEW = null;
   renderSettingsForm();
   document.getElementById('settingsOverlay').style.display='flex';
 }
 function closeSettingsModal(){ document.getElementById('settingsOverlay').style.display='none'; }
 
 function applySettings(){
+  const before = Object.assign({}, SETTINGS); // snapshot ringan sblm ditimpa -- utk riwayat kalibrasi
   Object.assign(SETTINGS, SETTINGS_DRAFT);
   saveSettings();
+  recordCalibrationChange(before, SETTINGS, window.LAST_CALIB_PREVIEW||null);
+  window.LAST_CALIB_PREVIEW = null; // konsumsi sekali -- cegah preview basi "bocor" ke sesi kalibrasi berikutnya
+  calibrationPreviewHtml = '';
   // Kalibrasi baru berlaku ke SELURUH histori yg sudah masuk (bukan cuma candle baru ke depan) --
   // sama seperti backfill, replay ulang tiap pair lewat mesin yg sama persis dgn parameter baru.
   Object.values(APP).forEach(app=>replayHistory(app));
   renderAll();
   closeSettingsModal();
+}
+
+/* ============================== 6c. ANALISIS & JURNAL ============================== */
+// Lapisan data utk panel "Analisis Pasar": jurnal trade, riwayat kalibrasi, penghitung percobaan
+// (anti-p-hacking), dan primitif simulasi. SEMUA fungsi di sini murni observasional -- tidak ada
+// yg mengubah gerbang/logic mesin (lihat hook opsional yg ditambahkan ke stepEngine di §4).
+
+// simulateWithSettings: jalankan ulang histori yg SUDAH ada di aggregator tiap pair lewat mesin yg
+// SAMA PERSIS (runReplayLoop), dgn parameter kalibrasi manapun, TANPA menyentuh app.engine yg
+// sedang tampil live. Murni & idempoten -- aman dipanggil berkali-kali kapan saja.
+function simulateWithSettings(pairSyms, settingsOverride){
+  const settings = settingsOverride || SETTINGS;
+  const out = {};
+  pairSyms.forEach(sym=>{
+    const app = APP[sym]; if(!app) return;
+    const collector = [];
+    runReplayLoop(app.asset, app.m1Agg.closed, app.m5Agg.closed, tickSizeFor(app),
+      evt=>collector.push(evt), settings);
+    out[sym] = summarizeCollector(collector, app.m1Agg.closed);
+  });
+  return out;
+}
+
+function summarizeCollector(events, m1){
+  const started = events.filter(e=>e.type==='hypothesis_started');
+  const failed = events.filter(e=>e.type==='hypothesis_failed');
+  const confirmed = events.filter(e=>e.type==='confirmed');
+  const closed = events.filter(e=>e.type==='trade_closed');
+  const byReason = {}; failed.forEach(e=>{ byReason[e.reason]=(byReason[e.reason]||0)+1; });
+  const outcomes = {TP:0,SL:0,TIMEOUT:0}; closed.forEach(e=>{ outcomes[e.outcome]++; });
+  const rrs = confirmed.map(e=>e.rr).filter(v=>v!=null).sort((a,b)=>a-b);
+  const avgRR = rrs.length ? rrs.reduce((a,b)=>a+b,0)/rrs.length : null;
+  const medianRR = rrs.length ? rrs[Math.floor(rrs.length/2)] : null;
+  const holdMins = closed.map(e=> e.confirmedTs!=null ? (e.closedTs-e.confirmedTs)/60000 : null).filter(v=>v!=null);
+  const avgHoldMinutes = holdMins.length ? holdMins.reduce((a,b)=>a+b,0)/holdMins.length : null;
+  return {
+    candleCount: m1.length,
+    spanMinutes: m1.length ? (m1[m1.length-1].t - m1[0].t)/60000 : 0,
+    hypothesesFormed: started.length, confirmed: confirmed.length,
+    invalidated: failed.length, invalidatedByReason: byReason,
+    tradesClosed: closed.length, outcomes, openAtEnd: confirmed.length - closed.length,
+    avgRR, medianRR, avgHoldMinutes, events,
+  };
+}
+
+// Interval Wilson (binomial, tanpa asumsi normal) -- lebih tahan-salah utk sample kecil drpd
+// p ± 1.96*sqrt(p(1-p)/n) biasa, yg bisa keluar dari [0,1] saat n kecil.
+function wilsonInterval(wins, n, z){
+  z = z||1.96;
+  if(n===0) return {low:0, high:1};
+  const p = wins/n, z2 = z*z;
+  const denom = 1 + z2/n;
+  const center = (p + z2/(2*n)) / denom;
+  const margin = (z/denom) * Math.sqrt(p*(1-p)/n + z2/(4*n*n));
+  return { low: clamp(center-margin,0,1), high: clamp(center+margin,0,1) };
+}
+
+function computeRealizedRR(entryPrice, exitPrice, sl, dir){
+  if(entryPrice==null || exitPrice==null || sl==null) return null;
+  const risk = Math.abs(entryPrice-sl);
+  if(risk<=1e-9) return null;
+  const reward = dir==='above' ? (entryPrice-exitPrice) : (exitPrice-entryPrice);
+  return reward/risk;
+}
+
+// --- Jurnal Hasil (lfc.journal) ---
+let JOURNAL = [];
+function loadJournal(){
+  try{ const raw = localStorage.getItem('lfc.journal'); JOURNAL = raw ? JSON.parse(raw) : []; }
+  catch(e){ JOURNAL = []; }
+}
+function saveJournal(){ try{ localStorage.setItem('lfc.journal', JSON.stringify(JOURNAL)); }catch(e){} }
+function appendJournalEntry(rec){ JOURNAL.push(rec); if(JOURNAL.length>1000) JOURNAL.shift(); saveJournal(); }
+
+// Hook penulis-jurnal utk candle LIVE saja (dioper recompute(), TIDAK dioper replayHistory/backfill/
+// kalibrasi-ulang) -- supaya replay histori tidak pernah menulis entri jurnal dobel/retroaktif.
+// Deklarasi `function` (bukan const arrow) supaya ke-hoist -- recompute() di §6 memakainya sblm
+// definisi ini tercapai scr tekstual, sah krn keduanya sama-sama di dalam IIFE yg sama.
+function liveJournalHook(evt){
+  if(evt.type!=='trade_closed') return;
+  const asset = ASSETS.find(a=>a.sym===evt.sym);
+  appendJournalEntry({
+    id: evt.sym+'_'+evt.confirmedTs, sym:evt.sym, cls: asset?asset.cls:'?',
+    dir:evt.dir, biasLabel: evt.dir==='below'?'BULLISH':'BEARISH',
+    confirmedTs:evt.confirmedTs, entryPrice:evt.entryPrice, sl:evt.sl, tp:evt.tp, rrPlanned:evt.rrPlanned,
+    closedTs:evt.closedTs, exitPrice:evt.exitPrice, outcome:evt.outcome,
+    rrRealized: computeRealizedRR(evt.entryPrice, evt.exitPrice, evt.sl, evt.dir),
+    durationMin: evt.confirmedTs!=null ? (evt.closedTs-evt.confirmedTs)/60000 : null,
+    settingsSnapshot: Object.assign({}, SETTINGS), source:'live',
+  });
+}
+
+function computeJournalStats(entries){
+  const n = entries.length;
+  const outcomes = {TP:0,SL:0,TIMEOUT:0}; entries.forEach(e=>outcomes[e.outcome]++);
+  const decisive = outcomes.TP+outcomes.SL; // basis win-rate biner -- TIMEOUT bukan win/loss
+  const wr = decisive ? wilsonInterval(outcomes.TP, decisive) : {low:0,high:1};
+  const rrs = entries.map(e=>e.rrRealized).filter(v=>v!=null);
+  const expectancyR = rrs.length ? rrs.reduce((a,b)=>a+b,0)/rrs.length : null;
+  const perPair = {};
+  entries.forEach(e=>{
+    if(!perPair[e.sym]) perPair[e.sym] = {n:0, TP:0, SL:0, TIMEOUT:0};
+    perPair[e.sym].n++; perPair[e.sym][e.outcome]++;
+  });
+  return { n, outcomes, winRatePct: decisive ? Math.round(outcomes.TP/decisive*100) : null,
+    winRateCI: wr, expectancyR, perPair };
+}
+
+// --- Riwayat Kalibrasi (lfc.calibrationHistory) ---
+let CALIB_HISTORY = [];
+function loadCalibHistory(){
+  try{ const raw = localStorage.getItem('lfc.calibrationHistory'); CALIB_HISTORY = raw ? JSON.parse(raw) : []; }
+  catch(e){ CALIB_HISTORY = []; }
+}
+function saveCalibHistory(){ try{ localStorage.setItem('lfc.calibrationHistory', JSON.stringify(CALIB_HISTORY)); }catch(e){} }
+function diffSettings(oldS, newS){
+  const out={};
+  Object.keys(DEFAULT_SETTINGS).forEach(k=>{ if(oldS[k]!==newS[k]) out[k]={from:oldS[k], to:newS[k]}; });
+  return out;
+}
+function recordCalibrationChange(oldSettings, newSettings, previewStats){
+  const diff = diffSettings(oldSettings, newSettings);
+  if(!Object.keys(diff).length) return; // tidak ada yg benar2 berubah -- tidak perlu dicatat
+  CALIB_HISTORY.push({ ts:Date.now(), diff, note:'', previewStats: previewStats||null });
+  if(CALIB_HISTORY.length>50) CALIB_HISTORY.shift();
+  saveCalibHistory();
+}
+
+// --- Penghitung Percobaan / anti-p-hacking (lfc.trials) ---
+let TRIALS = [];
+function loadTrials(){
+  try{ const raw = localStorage.getItem('lfc.trials'); TRIALS = raw ? JSON.parse(raw) : []; }
+  catch(e){ TRIALS = []; }
+}
+function saveTrials(){ try{ localStorage.setItem('lfc.trials', JSON.stringify(TRIALS)); }catch(e){} }
+function appendTrial(rec){ TRIALS.push(rec); if(TRIALS.length>200) TRIALS.shift(); saveTrials(); }
+
+/* ============================== 6d. PANEL ANALISIS (UI) ============================== */
+// Modal 4-tab terpisah dari panel Kalibrasi (§6b) -- tujuannya beda (baca kondisi mesin & hasilnya,
+// bukan ubah ambang). Reuse penuh class .modal-*/.btn/.badge/.kv yg sudah ada; hanya .tabbar/.banner/
+// .an-* yg baru (lihat <style>). Simulasi (§6c simulateWithSettings) berjalan SINKRON di main thread
+// (sifat yg sudah ada sejak replayHistory/"Terapkan Kalibrasi" pertama kali dibuat) -- tombol yg
+// memicunya wajib nonaktifkan diri & tampilkan status "Menghitung…" selama proses.
+
+let ANALYSIS_TAB = 'overview';
+let HYPOTHESIS_DRAFT = null;
+let calibrationPreviewHtml = '';
+
+function analysisModalOpen(){
+  const el = document.getElementById('analysisOverlay');
+  return !!(el && el.style.display==='flex');
+}
+
+function fmtSpan(candleCount, spanMinutes){
+  const h = spanMinutes/60;
+  const txt = h>=48 ? (h/24).toFixed(1)+' hari' : h.toFixed(1)+' jam';
+  return candleCount+' candle (~'+txt+')';
+}
+
+function sampleBanner(n, thresholds){
+  thresholds = thresholds || {bad:5, warn:20};
+  if(n<thresholds.bad) return '<div class="banner bad">Sample sangat kecil (n='+n+') — angka di bawah ini nyaris tidak bermakna secara statistik, jangan dipakai sbg bukti apa pun.</div>';
+  if(n<thresholds.warn) return '<div class="banner warn">Sample kecil (n='+n+') — interpretasikan dgn hati-hati, bukan bukti adanya/tidaknya edge.</div>';
+  return '';
+}
+function fmtPct(x, n){
+  if(x==null) return '—';
+  return (n!=null && n<10) ? Math.round(x)+'%' : x.toFixed(1)+'%';
+}
+
+function openAnalysisModal(){
+  document.getElementById('analysisOverlay').style.display='flex';
+  let seen = false;
+  try{ seen = !!sessionStorage.getItem('lfc.analysisBannerSeen'); }catch(e){}
+  document.getElementById('analysisFirstRunBanner').style.display = seen ? 'none' : 'block';
+  renderActiveAnalysisTab();
+}
+function closeAnalysisModal(){ document.getElementById('analysisOverlay').style.display='none'; }
+
+function switchAnalysisTab(tab){
+  ANALYSIS_TAB = tab;
+  document.querySelectorAll('#analysisOverlay .tab-btn').forEach(b=>{
+    b.classList.toggle('active', b.getAttribute('data-tab')===tab);
+  });
+  renderActiveAnalysisTab();
+}
+
+function renderActiveAnalysisTab(){
+  const body = document.getElementById('analysisBody');
+  if(!body) return;
+  if(ANALYSIS_TAB==='overview') renderMarketOverviewTab(body);
+  else if(ANALYSIS_TAB==='hypothesis') renderHypothesisTab(body);
+  else if(ANALYSIS_TAB==='calib') renderCalibTab(body);
+  else if(ANALYSIS_TAB==='journal') renderJournalTab(body);
+}
+
+/* --------- Tab 1: Ringkasan Pasar (murni observasi, tanpa simulasi) --------- */
+let OVERVIEW_SORT = 'status';
+function renderMarketOverviewTab(body){
+  const rows = ASSETS.map(asset=>{
+    const app = APP[asset.sym]; const eng = app.engine;
+    const rd = readiness(eng);
+    const readinessAvg = (rd.liquidity+rd.structure+rd.displacement+rd.mss+rd.fvg+rd.retest)/6;
+    const hypAgeRatio = eng.hypothesisSince!=null ? ((Date.now()-eng.hypothesisSince)/60000)/CFG.hypothesisMaxAgeMinutes : null;
+    const tradeAgeRatio = (eng.status==='CONFIRMED' && eng.retest) ? ((Date.now()-eng.retest.ts)/60000)/CFG.tradeMaxAgeMinutes : null;
+    const extPrice = eng.activeSweep&&eng.activeSweep.dir==='below' ? eng.externalLiquidity.below : eng.externalLiquidity.above;
+    const distToExt = (extPrice!=null && eng.price!=null && eng.atr) ? Math.abs(extPrice-eng.price)/eng.atr : null;
+    const lastEvent = eng.timeline.length ? eng.timeline[eng.timeline.length-1].msg : '—';
+    const closed = app.m1Agg.closed;
+    return { asset, eng, readinessAvg, hypAgeRatio, tradeAgeRatio, distToExt, lastEvent,
+      candleCount: closed.length, spanMinutes: closed.length ? (closed[closed.length-1].t-closed[0].t)/60000 : 0 };
+  });
+  const statusRank = {CONFIRMED:0, WAIT:1, DEVELOPING:2, OBSERVE:3, INVALID:4};
+  const sorted = rows.slice().sort((a,b)=>{
+    if(OVERVIEW_SORT==='status') return (statusRank[a.eng.status]-statusRank[b.eng.status]) || (b.readinessAvg-a.readinessAvg);
+    if(OVERVIEW_SORT==='readiness') return b.readinessAvg-a.readinessAvg;
+    if(OVERVIEW_SORT==='age'){
+      const ra = a.hypAgeRatio!=null?a.hypAgeRatio:(a.tradeAgeRatio!=null?a.tradeAgeRatio:-1);
+      const rb = b.hypAgeRatio!=null?b.hypAgeRatio:(b.tradeAgeRatio!=null?b.tradeAgeRatio:-1);
+      return rb-ra;
+    }
+    return 0;
+  });
+  const counts = {}; rows.forEach(r=>{ counts[r.eng.status]=(counts[r.eng.status]||0)+1; });
+  const regimeCounts = {}; rows.forEach(r=>{ regimeCounts[r.eng.regime]=(regimeCounts[r.eng.regime]||0)+1; });
+  const biasCounts = {}; rows.forEach(r=>{ biasCounts[r.eng.bias]=(biasCounts[r.eng.bias]||0)+1; });
+
+  body.innerHTML =
+    '<div class="an-section">'
+    + '<div class="an-stat-row">'
+      + Object.keys(T.status).map(s=>'<div class="an-stat"><span class="lb">'+s+'</span><span class="v badge '+s+'" style="font-size:13px;">'+(counts[s]||0)+'</span></div>').join('')
+    + '</div>'
+    + '<div style="color:var(--mut);font-size:11.5px;margin-bottom:10px;">'
+      + 'Regime: '+Object.entries(regimeCounts).map(([k,v])=>v+' '+k).join(' · ')
+      + ' &nbsp;·&nbsp; Bias: '+Object.entries(biasCounts).map(([k,v])=>v+' '+k).join(' · ')
+    + '</div>'
+    + '<div class="an-tools">'
+      + '<label>Urutkan: <select id="ovSort">'
+        + '<option value="status"'+(OVERVIEW_SORT==='status'?' selected':'')+'>Prioritas status</option>'
+        + '<option value="readiness"'+(OVERVIEW_SORT==='readiness'?' selected':'')+'>Readiness% tertinggi</option>'
+        + '<option value="age"'+(OVERVIEW_SORT==='age'?' selected':'')+'>Mendekati kedaluwarsa</option>'
+      + '</select></label>'
+    + '</div>'
+    + '<table class="an-table"><thead><tr>'
+      + '<th>Pair</th><th>Kelas</th><th>Status</th><th>Bias</th><th>Regime</th><th>Vol</th><th>ATR</th>'
+      + '<th>Readiness</th><th>Umur Hipotesis</th><th>Umur Trade</th><th>Jarak Liquidity</th><th>R:R</th>'
+      + '<th>Event Terakhir</th><th>Cakupan Histori</th>'
+    + '</tr></thead><tbody>'
+    + sorted.map(r=>{
+      const ageCell = (ratio, label)=>{
+        if(ratio==null) return '—';
+        const pct = Math.round(clamp(ratio,0,1.2)*100);
+        const color = ratio>0.8 ? 'var(--red)' : ratio>0.5 ? 'var(--yellow)' : 'var(--mut)';
+        return '<span style="color:'+color+'">'+pct+'% '+label+'</span>';
+      };
+      return '<tr class="clickable" data-sym="'+r.asset.sym+'">'
+        + '<td><b>'+r.asset.sym+'</b></td>'
+        + '<td style="color:var(--mut2)">'+r.asset.cls+'</td>'
+        + '<td><span class="badge '+r.eng.status+'">'+r.eng.status+'</span></td>'
+        + '<td style="color:'+(r.eng.bias==='BULLISH'?'var(--green)':r.eng.bias==='BEARISH'?'var(--red)':'var(--mut)')+'">'+r.eng.bias+'</td>'
+        + '<td>'+r.eng.regime+'</td>'
+        + '<td>'+r.eng.volLabel+'</td>'
+        + '<td>'+(r.eng.atr?fmt(r.eng.atr,r.asset.dp):'—')+'</td>'
+        + '<td>'+Math.round(r.readinessAvg*100)+'%</td>'
+        + '<td>'+ageCell(r.hypAgeRatio,'')+'</td>'
+        + '<td>'+ageCell(r.tradeAgeRatio,'')+'</td>'
+        + '<td>'+(r.distToExt!=null?r.distToExt.toFixed(2)+'x':'—')+'</td>'
+        + '<td>'+(r.eng.rr!=null?r.eng.rr.toFixed(2):'—')+'</td>'
+        + '<td style="white-space:normal;max-width:220px;color:var(--mut);font-size:11px;">'+r.lastEvent+'</td>'
+        + '<td style="color:var(--mut2);font-size:10.5px;">'+fmtSpan(r.candleCount,r.spanMinutes)+'</td>'
+      + '</tr>';
+    }).join('')
+    + '</tbody></table>'
+    + '</div>';
+
+  document.getElementById('ovSort').addEventListener('change', (e)=>{ OVERVIEW_SORT=e.target.value; renderMarketOverviewTab(body); });
+  body.querySelectorAll('tr[data-sym]').forEach(tr=>{
+    tr.addEventListener('click', ()=>{ ACTIVE_SYM = tr.getAttribute('data-sym'); closeAnalysisModal(); renderAll(); });
+  });
+}
+
+/* --------- Tab 2: Uji Hipotesis (jalankan simulateWithSettings atas histori yg ada) --------- */
+let HYPOTHESIS_SCOPE = 'active'; // 'active' | 'all'
+let HYPOTHESIS_USE_ALT = false;
+let LAST_HYPOTHESIS_RESULT = null;
+
+function renderHypothesisTab(body){
+  if(!HYPOTHESIS_DRAFT) HYPOTHESIS_DRAFT = Object.assign({}, SETTINGS);
+  const trialCount = TRIALS.length;
+  const trialWarn = trialCount>30 ? '<div class="banner bad">Sudah '+trialCount+' kali mencoba kalibrasi/hipotesis di sesi ini secara total — hati-hati: makin sering utak-atik parameter sampai hasil "kelihatan bagus", makin besar risiko itu cuma kebetulan (p-hacking), bukan pola sungguhan.</div>'
+    : trialCount>10 ? '<div class="banner warn">Sudah '+trialCount+' kali percobaan kalibrasi/hipotesis tercatat — mulai perhatikan supaya tidak mengulang-ulang sampai kebetulan cocok.</div>' : '';
+
+  body.innerHTML =
+    '<div class="an-section">'
+    + '<div class="banner info">Jalankan mesin ulang di atas histori candle yg SUDAH ada di aplikasi (bukan backtest bertahun-tahun) -- utk melihat "kalau parameter begini, apa yg akan terjadi pada data yg sama". Ini simulasi in-sample, bukan bukti prediktif ke depan.</div>'
+    + trialWarn
+    + '<div class="an-tools">'
+      + '<label><input type="radio" name="hypScope" value="active"'+(HYPOTHESIS_SCOPE==='active'?' checked':'')+'> Pair aktif ('+ACTIVE_SYM+')</label>'
+      + '<label><input type="radio" name="hypScope" value="all"'+(HYPOTHESIS_SCOPE==='all'?' checked':'')+'> Semua 12 pair</label>'
+      + '<label><input type="checkbox" id="hypUseAlt"'+(HYPOTHESIS_USE_ALT?' checked':'')+'> Coba parameter alternatif</label>'
+      + '<button class="btn primary" id="btnRunHypothesis">▶ Jalankan Uji</button>'
+      + '<span id="hypStatus" style="color:var(--mut);font-size:11px;"></span>'
+    + '</div>'
+    + (HYPOTHESIS_USE_ALT ? '<div class="an-section" id="hypSettingsForm">'
+        + SETTINGS_SCHEMA.map(g=>
+          '<div class="setting-group"><h4>'+g.group+'</h4><div class="desc">'+g.desc+'</div>'
+          + g.fields.map(f=>settingsRowHtml(f, HYPOTHESIS_DRAFT)).join('')
+          + '</div>'
+        ).join('') + '</div>' : '')
+    + '<div id="hypResult"></div>'
+    + '</div>';
+
+  body.querySelectorAll('input[name="hypScope"]').forEach(r=>r.addEventListener('change', e=>{ HYPOTHESIS_SCOPE=e.target.value; }));
+  document.getElementById('hypUseAlt').addEventListener('change', e=>{ HYPOTHESIS_USE_ALT=e.target.checked; renderHypothesisTab(body); });
+  if(HYPOTHESIS_USE_ALT){
+    document.getElementById('hypSettingsForm').querySelectorAll('[data-key]').forEach(el=>{
+      const key = el.getAttribute('data-key');
+      const type = SETTINGS_FIELD_TYPE[key];
+      el.addEventListener('change', ()=>{
+        if(type==='checkbox') HYPOTHESIS_DRAFT[key] = el.checked;
+        else if(type==='number') HYPOTHESIS_DRAFT[key] = parseFloat(el.value);
+        else if(key==='reclaimMaxCandles') HYPOTHESIS_DRAFT[key] = parseInt(el.value,10);
+        else HYPOTHESIS_DRAFT[key] = el.value;
+        if(type==='select') renderHypothesisTab(body);
+      });
+    });
+  }
+  document.getElementById('btnRunHypothesis').addEventListener('click', ()=>runHypothesisTest(body));
+  if(LAST_HYPOTHESIS_RESULT) renderHypothesisResult(document.getElementById('hypResult'), LAST_HYPOTHESIS_RESULT);
+}
+
+function runHypothesisTest(body){
+  const btn = document.getElementById('btnRunHypothesis');
+  const statusEl = document.getElementById('hypStatus');
+  btn.disabled = true; statusEl.textContent = 'Menghitung…';
+  // setTimeout(0) supaya "Menghitung..." sempat ter-render sblm loop sinkron yg berat mulai.
+  setTimeout(()=>{
+    const pairs = HYPOTHESIS_SCOPE==='all' ? ASSETS.map(a=>a.sym) : [ACTIVE_SYM];
+    const settingsToUse = HYPOTHESIS_USE_ALT ? HYPOTHESIS_DRAFT : null;
+    const perPair = simulateWithSettings(pairs, settingsToUse);
+    const agg = { hypothesesFormed:0, confirmed:0, invalidated:0, invalidatedByReason:{}, tradesClosed:0,
+      outcomes:{TP:0,SL:0,TIMEOUT:0}, candleCount:0, spanMinutes:0 };
+    Object.values(perPair).forEach(s=>{
+      agg.hypothesesFormed+=s.hypothesesFormed; agg.confirmed+=s.confirmed; agg.invalidated+=s.invalidated;
+      agg.tradesClosed+=s.tradesClosed; agg.candleCount+=s.candleCount; agg.spanMinutes=Math.max(agg.spanMinutes,s.spanMinutes);
+      Object.entries(s.invalidatedByReason).forEach(([k,v])=>{ agg.invalidatedByReason[k]=(agg.invalidatedByReason[k]||0)+v; });
+      Object.entries(s.outcomes).forEach(([k,v])=>{ agg.outcomes[k]+=v; });
+    });
+    LAST_HYPOTHESIS_RESULT = { perPair, agg, pairs, ts:Date.now() };
+    appendTrial({ ts:Date.now(), kind:'hypothesis-dry-run', scope:pairs.join(','), n:agg.hypothesesFormed,
+      summary:{ confirmed:agg.confirmed, tradesClosed:agg.tradesClosed, outcomes:agg.outcomes } });
+    btn.disabled = false; statusEl.textContent = '';
+    renderHypothesisResult(document.getElementById('hypResult'), LAST_HYPOTHESIS_RESULT);
+  }, 20);
+}
+
+function renderHypothesisResult(el, result){
+  if(!el || !result) return;
+  const agg = result.agg;
+  const decisive = agg.outcomes.TP+agg.outcomes.SL;
+  const wr = decisive ? wilsonInterval(agg.outcomes.TP, decisive) : null;
+  el.innerHTML =
+    '<div class="an-section">'
+    + '<h4>Hasil (' + result.pairs.length + ' pair, ' + fmtSpan(agg.candleCount, agg.spanMinutes) + ')</h4>'
+    + sampleBanner(agg.hypothesesFormed)
+    + '<div class="an-stat-row">'
+      + '<div class="an-stat"><span class="lb">Hipotesis Terbentuk</span><span class="v">'+agg.hypothesesFormed+'</span></div>'
+      + '<div class="an-stat"><span class="lb">CONFIRMED</span><span class="v" style="color:var(--green)">'+agg.confirmed+'</span></div>'
+      + '<div class="an-stat"><span class="lb">Dibatalkan</span><span class="v" style="color:var(--red)">'+agg.invalidated+'</span></div>'
+      + '<div class="an-stat"><span class="lb">Trade Selesai</span><span class="v">'+agg.tradesClosed+'</span></div>'
+      + '<div class="an-stat"><span class="lb">TP / SL / Timeout</span><span class="v" style="font-size:13px;">'+agg.outcomes.TP+' / '+agg.outcomes.SL+' / '+agg.outcomes.TIMEOUT+'</span></div>'
+      + (wr ? '<div class="an-stat"><span class="lb">Win Rate (CI 95%)</span><span class="v">'+fmtPct(agg.outcomes.TP/decisive*100, decisive)+'<span style="font-size:10px;color:var(--mut2);"> ('+Math.round(wr.low*100)+'–'+Math.round(wr.high*100)+'%)</span></span></div>' : '')
+    + '</div>'
+    + '<div style="color:var(--mut);font-size:11px;margin-bottom:10px;">Alasan dibatalkan: '
+      + (Object.keys(agg.invalidatedByReason).length ? Object.entries(agg.invalidatedByReason).map(([k,v])=>k+': '+v).join(' · ') : '—')
+    + '</div>'
+    + '<table class="an-table"><thead><tr><th>Pair</th><th>Candle</th><th>Hipotesis</th><th>CONFIRMED</th><th>Trade Selesai</th><th>TP</th><th>SL</th><th>Timeout</th><th>Avg R:R</th></tr></thead><tbody>'
+      + result.pairs.map(sym=>{ const s=result.perPair[sym]; if(!s) return '';
+        return '<tr><td><b>'+sym+'</b></td><td>'+fmtSpan(s.candleCount,s.spanMinutes)+'</td><td>'+s.hypothesesFormed+'</td>'
+          + '<td>'+s.confirmed+'</td><td>'+s.tradesClosed+'</td><td>'+s.outcomes.TP+'</td><td>'+s.outcomes.SL+'</td><td>'+s.outcomes.TIMEOUT+'</td>'
+          + '<td>'+(s.avgRR!=null?s.avgRR.toFixed(2):'—')+'</td></tr>';
+      }).join('')
+    + '</tbody></table>'
+    + '<button class="btn" id="btnSaveHypToJournal" style="margin-top:10px;">Simpan hasil ini ke Jurnal (ditandai "UJI")</button>'
+    + '</div>';
+  const btnSave = document.getElementById('btnSaveHypToJournal');
+  if(btnSave) btnSave.addEventListener('click', ()=>{
+    let n=0;
+    Object.entries(result.perPair).forEach(([sym,s])=>{
+      const asset = ASSETS.find(a=>a.sym===sym);
+      (s.events||[]).filter(e=>e.type==='trade_closed').forEach(evt=>{
+        appendJournalEntry({
+          id: sym+'_'+evt.confirmedTs+'_dryrun'+result.ts, sym, cls: asset?asset.cls:'?',
+          dir:evt.dir, biasLabel: evt.dir==='below'?'BULLISH':'BEARISH',
+          confirmedTs:evt.confirmedTs, entryPrice:evt.entryPrice, sl:evt.sl, tp:evt.tp, rrPlanned:evt.rrPlanned,
+          closedTs:evt.closedTs, exitPrice:evt.exitPrice, outcome:evt.outcome,
+          rrRealized: computeRealizedRR(evt.entryPrice, evt.exitPrice, evt.sl, evt.dir),
+          durationMin: evt.confirmedTs!=null ? (evt.closedTs-evt.confirmedTs)/60000 : null,
+          settingsSnapshot: Object.assign({}, HYPOTHESIS_USE_ALT?HYPOTHESIS_DRAFT:SETTINGS), source:'dry-run-saved',
+        });
+        n++;
+      });
+    });
+    btnSave.textContent = n+' trade disimpan ke Jurnal (tab Jurnal Hasil)';
+    btnSave.disabled = true;
+  });
+}
+
+/* --------- Tombol "Pratinjau Dampak" (di footer panel Kalibrasi) + Tab 3: Dampak Kalibrasi --------- */
+function previewCalibrationImpact(){
+  const btn = document.getElementById('btnPreviewImpact');
+  btn.disabled = true; const origText = btn.textContent; btn.textContent = 'Menghitung…';
+  setTimeout(()=>{
+    const allSyms = ASSETS.map(a=>a.sym);
+    const before = simulateWithSettings(allSyms, SETTINGS);        // kalibrasi AKTIF sekarang
+    const after  = simulateWithSettings(allSyms, SETTINGS_DRAFT);  // draft di form, blm ditekan Terapkan
+    calibrationPreviewHtml = renderCalibPreviewTable(before, after, allSyms, diffSettings(SETTINGS, SETTINGS_DRAFT));
+    // Buang `events` (mentah, bisa besar) sblm disimpan ke window/localStorage -- rendering tabel
+    // ringkasan di atas & riwayat kalibrasi cuma pakai field agregat (hypothesesFormed/outcomes/dst.),
+    // events per-pair TIDAK pernah dibaca lagi setelah render selesai.
+    const stripEvents = obj=>{ const out={}; Object.keys(obj).forEach(k=>{ const {events,...rest}=obj[k]; out[k]=rest; }); return out; };
+    window.LAST_CALIB_PREVIEW = { before: stripEvents(before), after: stripEvents(after), ts:Date.now() };
+    const holder = document.getElementById('calibrationPreview');
+    if(holder) holder.innerHTML = calibrationPreviewHtml;
+    const totalN = allSyms.reduce((a,sym)=>a+(before[sym]?before[sym].hypothesesFormed:0),0);
+    appendTrial({ ts:Date.now(), kind:'calibration-preview', scope:'all-12', n: totalN,
+      summary:{ diff: diffSettings(SETTINGS, SETTINGS_DRAFT) } });
+    btn.disabled = false; btn.textContent = origText;
+  }, 20);
+}
+
+function aggOf(perPairObj, syms){
+  const agg = { hypothesesFormed:0, confirmed:0, tradesClosed:0, outcomes:{TP:0,SL:0,TIMEOUT:0}, candleCount:0, spanMinutes:0, rrs:[] };
+  syms.forEach(sym=>{ const s=perPairObj[sym]; if(!s) return;
+    agg.hypothesesFormed+=s.hypothesesFormed; agg.confirmed+=s.confirmed; agg.tradesClosed+=s.tradesClosed;
+    agg.candleCount+=s.candleCount; agg.spanMinutes=Math.max(agg.spanMinutes,s.spanMinutes);
+    Object.entries(s.outcomes).forEach(([k,v])=>{ agg.outcomes[k]+=v; });
+    if(s.avgRR!=null) agg.rrs.push(s.avgRR);
+  });
+  agg.avgRR = agg.rrs.length ? agg.rrs.reduce((a,b)=>a+b,0)/agg.rrs.length : null;
+  return agg;
+}
+
+// diff = hasil diffSettings TERKAIT preview ini secara spesifik (bukan dibaca ulang dr SETTINGS/
+// SETTINGS_DRAFT global) -- supaya render ulang riwayat lama (settings global sudah berubah lagi
+// sejak saat itu) tetap menunjukkan perubahan yg BENAR terjadi saat preview itu diambil, bukan
+// dibandingkan thd state sekarang. `null` = jangan tampilkan baris diff sama sekali (dipakai saat
+// diff-nya SUDAH ditampilkan terpisah oleh pemanggil, spt di renderCalibTab).
+function renderCalibPreviewTable(before, after, syms, diff){
+  const ab = aggOf(before, syms), aa = aggOf(after, syms);
+  const decB = ab.outcomes.TP+ab.outcomes.SL, decA = aa.outcomes.TP+aa.outcomes.SL;
+  const wrB = decB ? Math.round(ab.outcomes.TP/decB*100) : null;
+  const wrA = decA ? Math.round(aa.outcomes.TP/decA*100) : null;
+  const diffHtml = diff==null ? '' : (Object.keys(diff).length ? '<div style="font-size:11px;color:var(--mut);margin-bottom:8px;">Perubahan: '
+        + Object.entries(diff).map(([k,v])=>k+' ('+v.from+'→'+v.to+')').join(', ') + '</div>'
+        : '<div style="font-size:11px;color:var(--mut);margin-bottom:8px;">Belum ada perubahan dari kalibrasi aktif.</div>');
+  const row = (label, b, a)=>'<tr><td>'+label+'</td><td>'+b+'</td><td>'+a+'</td></tr>';
+  return '<div class="an-section" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px;">'
+    + '<h4>Pratinjau Dampak (Sebelum → Sesudah, 12 pair)</h4>'
+    + diffHtml
+    + sampleBanner(Math.min(ab.hypothesesFormed, aa.hypothesesFormed))
+    + '<table class="an-table"><thead><tr><th>Metrik</th><th>Sebelum</th><th>Sesudah</th></tr></thead><tbody>'
+      + row('Hipotesis terbentuk', ab.hypothesesFormed, aa.hypothesesFormed)
+      + row('CONFIRMED', ab.confirmed, aa.confirmed)
+      + row('Trade selesai (TP/SL/Timeout)', ab.outcomes.TP+'/'+ab.outcomes.SL+'/'+ab.outcomes.TIMEOUT, aa.outcomes.TP+'/'+aa.outcomes.SL+'/'+aa.outcomes.TIMEOUT)
+      + row('Win rate (dari trade selesai)', wrB!=null?wrB+'%':'—', wrA!=null?wrA+'%':'—')
+      + row('Avg R:R', ab.avgRR!=null?ab.avgRR.toFixed(2):'—', aa.avgRR!=null?aa.avgRR.toFixed(2):'—')
+    + '</tbody></table>'
+    + '<div style="font-size:10.5px;color:var(--mut2);margin-top:6px;">Lihat rincian &amp; riwayat kalibrasi sebelumnya di tombol "📊 Analisis Pasar" → tab "Dampak Kalibrasi".</div>'
+    + '</div>';
+}
+
+function renderCalibTab(body){
+  const banner = '<div class="banner warn"><b>Perbandingan ini memakai data historis yang SAMA yang juga dipakai untuk melihat hasilnya — ini BUKAN pengujian out-of-sample.</b> Kalibrasi yang kelihatan lebih baik di sini belum tentu lebih baik di data yang belum terjadi, apalagi dengan sample jam-hari.</div>';
+  if(!CALIB_HISTORY.length){
+    body.innerHTML = '<div class="an-section">'+banner
+      + '<div style="color:var(--mut);font-size:12px;padding:20px 0;text-align:center;">Belum ada riwayat perubahan kalibrasi. Buka panel "⚙ Kalibrasi", ubah parameter, klik "🔍 Pratinjau Dampak" (opsional) lalu "Terapkan" untuk mulai mencatat riwayat di sini.</div></div>';
+    return;
+  }
+  const rows = CALIB_HISTORY.slice().reverse().map((entry,i)=>{
+    const diffTxt = Object.entries(entry.diff).map(([k,v])=>k+': '+v.from+' → '+v.to).join(', ');
+    const preview = entry.previewStats ? renderCalibPreviewTableFromSnapshot(entry.previewStats) : '<div style="color:var(--mut2);font-size:11px;">(tidak ada pratinjau tersimpan utk perubahan ini)</div>';
+    return '<div class="an-section" style="border-bottom:1px solid var(--line-soft);padding-bottom:10px;">'
+      + '<div style="display:flex;justify-content:space-between;color:var(--mut);font-size:11px;">'
+        + '<span>'+new Date(entry.ts).toLocaleString('id-ID')+'</span>'
+      + '</div>'
+      + '<div style="font-size:12px;margin:4px 0;">'+diffTxt+'</div>'
+      + preview
+    + '</div>';
+  }).join('');
+  body.innerHTML = '<div class="an-section">'+banner+rows+'</div>';
+}
+function renderCalibPreviewTableFromSnapshot(snap){
+  const syms = Object.keys(snap.before||{});
+  if(!syms.length) return '';
+  // diff=null: renderCalibTab sudah menampilkan diffTxt entri ini terpisah, jangan dobel di sini.
+  return renderCalibPreviewTable(snap.before, snap.after, syms, null)
+    .replace('<h4>Pratinjau Dampak (Sebelum → Sesudah, 12 pair)</h4>','');
+}
+
+/* --------- Tab 4: Jurnal Hasil --------- */
+let JOURNAL_INCLUDE_DRYRUN = false;
+
+function downloadBlob(filename, mime, content){
+  const blob = new Blob([content], {type:mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+function journalToCSV(entries){
+  const cols = ['id','sym','cls','biasLabel','confirmedTs','entryPrice','sl','tp','rrPlanned','closedTs','exitPrice','outcome','rrRealized','durationMin','source'];
+  const lines = [cols.join(',')];
+  entries.forEach(e=>{ lines.push(cols.map(c=>{
+    let v = e[c]; if(v==null) return '';
+    if(typeof v==='string' && v.indexOf(',')>=0) return '"'+v.replace(/"/g,'""')+'"';
+    return v;
+  }).join(',')); });
+  return lines.join('\n');
+}
+
+function renderJournalTab(body){
+  const entries = JOURNAL.filter(e=> JOURNAL_INCLUDE_DRYRUN ? true : e.source==='live')
+    .slice().sort((a,b)=>b.closedTs-a.closedTs);
+  const stats = computeJournalStats(entries);
+  const firstTs = JOURNAL.length ? Math.min(...JOURNAL.map(e=>e.confirmedTs||e.closedTs)) : null;
+  const spanDays = firstTs ? ((Date.now()-firstTs)/86400000) : 0;
+
+  const banner = '<div class="banner info">Jurnal ini mencatat <b>'+JOURNAL.length+'</b> trade'
+    + (firstTs ? ' sejak <b>'+new Date(firstTs).toLocaleDateString('id-ID')+'</b> ('+spanDays.toFixed(1)+' hari)' : '')
+    + '. Ini BUKAN backtest bertahun-tahun dan BUKAN bukti statistik adanya edge — jangan mengambil '
+    + 'keputusan finansial dari angka win-rate di panel ini. Jurnal mulai kosong sejak fitur ini dipasang '
+    + '(tidak diisi retroaktif dari histori CONFIRMED sebelumnya).</div>';
+
+  if(!JOURNAL.length){
+    body.innerHTML = '<div class="an-section">'+banner
+      + '<div style="color:var(--mut);font-size:12px;padding:20px 0;text-align:center;">Belum ada trade tercatat. Jurnal terisi otomatis begitu ada sinyal CONFIRMED yg berjalan sampai TP/SL/time-stop di koneksi live, atau simpan manual dari tab "Uji Hipotesis".</div></div>'
+      + renderDataPrivacySection(); // tetap tampil walau jurnal kosong -- riwayat kalibrasi/trial independen dr jurnal
+    wireDataPrivacySection(body, renderJournalTab);
+    return;
+  }
+
+  body.innerHTML = '<div class="an-section">'
+    + banner
+    + '<div class="an-tools">'
+      + '<label><input type="checkbox" id="jrIncludeDry"'+(JOURNAL_INCLUDE_DRYRUN?' checked':'')+'> Sertakan hasil uji-hipotesis yg disimpan (badge "UJI")</label>'
+      + '<button class="btn" id="btnExportJSON">⬇ Unduh JSON</button>'
+      + '<button class="btn" id="btnExportCSV">⬇ Unduh CSV</button>'
+    + '</div>'
+    + sampleBanner(stats.n)
+    + '<div class="an-stat-row">'
+      + '<div class="an-stat"><span class="lb">Total Trade</span><span class="v">'+stats.n+'</span></div>'
+      + '<div class="an-stat"><span class="lb">TP / SL / Timeout</span><span class="v" style="font-size:13px;">'+stats.outcomes.TP+' / '+stats.outcomes.SL+' / '+stats.outcomes.TIMEOUT+'</span></div>'
+      + '<div class="an-stat"><span class="lb">Win Rate (CI 95%)</span><span class="v">'+(stats.winRatePct!=null?stats.winRatePct+'%':'—')+'<span style="font-size:10px;color:var(--mut2);">'+(stats.winRatePct!=null?' ('+Math.round(stats.winRateCI.low*100)+'–'+Math.round(stats.winRateCI.high*100)+'%)':'')+'</span></span></div>'
+      + '<div class="an-stat"><span class="lb">Expectancy</span><span class="v">'+(stats.expectancyR!=null?stats.expectancyR.toFixed(2)+'R':'—')+'</span></div>'
+    + '</div>'
+    + '<div style="color:var(--mut);font-size:11px;margin-bottom:10px;">Per pair: '
+      + Object.entries(stats.perPair).map(([sym,s])=>sym+' ('+s.n+': '+s.TP+'TP/'+s.SL+'SL/'+s.TIMEOUT+'TO)').join(' · ')
+    + '</div>'
+    + '<table class="an-table"><thead><tr><th></th><th>Tanggal</th><th>Pair</th><th>Arah</th><th>Entry</th><th>SL</th><th>TP</th><th>Exit</th><th>Outcome</th><th>R Realisasi</th><th>Durasi</th><th></th></tr></thead><tbody>'
+      + entries.map(e=>{
+        const outBadge = e.outcome==='TP'?'CONFIRMED':e.outcome==='SL'?'INVALID':'WAIT';
+        const srcBadge = e.source==='live' ? '<span class="an-badge live">LIVE</span>' : '<span class="an-badge dry">UJI</span>';
+        return '<tr><td>'+srcBadge+'</td>'
+          + '<td>'+fmtTime(e.confirmedTs)+' '+new Date(e.confirmedTs).toLocaleDateString('id-ID')+'</td>'
+          + '<td><b>'+e.sym+'</b></td><td style="color:'+(e.biasLabel==='BULLISH'?'var(--green)':'var(--red)')+'">'+e.biasLabel+'</td>'
+          + '<td>'+fmt(e.entryPrice,5)+'</td><td>'+fmt(e.sl,5)+'</td><td>'+fmt(e.tp,5)+'</td><td>'+fmt(e.exitPrice,5)+'</td>'
+          + '<td><span class="badge '+outBadge+'">'+e.outcome+'</span></td>'
+          + '<td>'+(e.rrRealized!=null?e.rrRealized.toFixed(2):'—')+'</td>'
+          + '<td>'+(e.durationMin!=null?Math.round(e.durationMin)+'m':'—')+'</td>'
+          + '<td><button class="btn" data-del="'+e.id+'" style="padding:2px 8px;font-size:10px;">Hapus</button></td></tr>';
+      }).join('')
+    + '</tbody></table>'
+    + '</div>'
+    + renderDataPrivacySection();
+
+  document.getElementById('jrIncludeDry').addEventListener('change', e=>{ JOURNAL_INCLUDE_DRYRUN=e.target.checked; renderJournalTab(body); });
+  document.getElementById('btnExportJSON').addEventListener('click', ()=>downloadBlob('lfc-jurnal-'+Date.now()+'.json','application/json',JSON.stringify(entries,null,2)));
+  document.getElementById('btnExportCSV').addEventListener('click', ()=>downloadBlob('lfc-jurnal-'+Date.now()+'.csv','text/csv',journalToCSV(entries)));
+  body.querySelectorAll('[data-del]').forEach(btn=>btn.addEventListener('click', ()=>{
+    const id = btn.getAttribute('data-del');
+    JOURNAL = JOURNAL.filter(e=>e.id!==id); saveJournal(); renderJournalTab(body);
+  }));
+  wireDataPrivacySection(body, renderJournalTab);
+}
+
+/* --------- "Data & Privasi": semua data panel Analisis ada di localStorage browser ini saja --------- */
+function renderDataPrivacySection(){
+  return '<div class="an-section" style="border-top:1px solid var(--line);padding-top:12px;margin-top:6px;">'
+    + '<h4>Data &amp; Privasi</h4>'
+    + '<div style="color:var(--mut2);font-size:10.5px;margin-bottom:8px;">Semua data di bawah tersimpan di browser ini saja (localStorage) -- tidak ada server. Unduh JSON/CSV di atas sbg cadangan sebelum menghapus.</div>'
+    + '<div class="an-tools">'
+      + '<button class="btn" id="btnResetJournal">Hapus semua Jurnal ('+JOURNAL.length+')</button>'
+      + '<button class="btn" id="btnResetCalibHist">Hapus riwayat Kalibrasi ('+CALIB_HISTORY.length+')</button>'
+      + '<button class="btn" id="btnResetTrials">Hapus penghitung Percobaan ('+TRIALS.length+')</button>'
+    + '</div></div>';
+}
+function wireDataPrivacySection(body, rerender){
+  const j = document.getElementById('btnResetJournal');
+  const c = document.getElementById('btnResetCalibHist');
+  const t = document.getElementById('btnResetTrials');
+  if(j) j.addEventListener('click', ()=>{ if(confirm('Hapus semua '+JOURNAL.length+' entri jurnal? Tindakan ini tidak bisa dibatalkan.')){ JOURNAL=[]; saveJournal(); rerender(body); } });
+  if(c) c.addEventListener('click', ()=>{ if(confirm('Hapus seluruh riwayat kalibrasi?')){ CALIB_HISTORY=[]; saveCalibHistory(); rerender(body); } });
+  if(t) t.addEventListener('click', ()=>{ if(confirm('Hapus penghitung percobaan (utk anti-p-hacking)?')){ TRIALS=[]; saveTrials(); rerender(body); } });
 }
 
 /* ================================ 7. RENDER ================================ */
@@ -1890,6 +2580,10 @@ function st_range(eng){ return eng.range; }
 function renderAll(){
   renderScanner();
   renderDetail();
+  // Auto-refresh 1Hz HANYA tab Ringkasan Pasar (murni tampilan, tanpa input form) -- tab Uji
+  // Hipotesis/Dampak Kalibrasi/Jurnal SENGAJA tidak diikutkan supaya input angka/checkbox yg
+  // sedang diisi user tidak kehilangan fokus/kursor tiap detik krn innerHTML dibangun ulang.
+  if(analysisModalOpen() && ANALYSIS_TAB==='overview') renderMarketOverviewTab(document.getElementById('analysisBody'));
   const liveCount = ASSETS.filter(a=>APP[a.sym] && APP[a.sym].connState==='live').length;
   document.getElementById('globalStatus').textContent = liveCount+' / '+ASSETS.length+' pair LIVE';
 }
@@ -1897,6 +2591,7 @@ function renderAll(){
 /* ================================= 8. BOOTSTRAP ================================= */
 
 loadSettings();
+loadJournal(); loadCalibHistory(); loadTrials();
 ASSETS.forEach(initAsset);
 attachChartDragOnce();
 document.getElementById('btnReconnectAll').addEventListener('click', startConnections);
@@ -1904,7 +2599,19 @@ document.getElementById('btnCalibration').addEventListener('click', openSettings
 document.getElementById('btnCloseSettings').addEventListener('click', closeSettingsModal);
 document.getElementById('btnApplySettings').addEventListener('click', applySettings);
 document.getElementById('btnResetSettings').addEventListener('click', ()=>{ SETTINGS_DRAFT = Object.assign({}, DEFAULT_SETTINGS); renderSettingsForm(); });
+document.getElementById('btnPreviewImpact').addEventListener('click', previewCalibrationImpact);
 document.getElementById('settingsOverlay').addEventListener('click', (e)=>{ if(e.target.id==='settingsOverlay') closeSettingsModal(); });
+document.getElementById('btnAnalysis').addEventListener('click', openAnalysisModal);
+document.getElementById('btnCloseAnalysis').addEventListener('click', closeAnalysisModal);
+document.getElementById('btnCloseAnalysis2').addEventListener('click', closeAnalysisModal);
+document.getElementById('btnDismissFirstRunBanner').addEventListener('click', ()=>{
+  document.getElementById('analysisFirstRunBanner').style.display='none';
+  try{ sessionStorage.setItem('lfc.analysisBannerSeen','1'); }catch(e){}
+});
+document.getElementById('analysisOverlay').addEventListener('click', (e)=>{ if(e.target.id==='analysisOverlay') closeAnalysisModal(); });
+document.querySelectorAll('#analysisOverlay .tab-btn').forEach(b=>{
+  b.addEventListener('click', ()=>switchAnalysisTab(b.getAttribute('data-tab')));
+});
 startConnections();
 renderAll();
 setInterval(renderAll, 1000);

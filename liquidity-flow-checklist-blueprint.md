@@ -1,4 +1,4 @@
-# Liquidity Flow Checklist — Blueprint V1.2
+# Liquidity Flow Checklist — Blueprint V1.3
 
 > V1.0 adalah konsep & mockup ASCII. V1.1 ini mengisi setiap celah yang membuat
 > V1.0 tidak bisa langsung dikodekan: ambang angka, urutan gate yang tidak
@@ -499,3 +499,125 @@ atas):
 (First **dan** Second Sweep — §4.4 pakai rumus yang sama untuk keduanya).
 Reclaim, Range, dan Compression secara alami hanya relevan untuk fase
 tertentu (First Sweep, pembentukan range, dan indikator pasca-range).
+
+## 9. Perbaikan Bug Kritis V1.2.1
+
+Tinjauan multi-agen (audit kode + backtest 59 hari data M1 Binance vs kontrol
+random-walk) menemukan mesin **belum layak jadi acuan scalping** dalam bentuk
+V1.2 — sinyal CONFIRMED tidak lebih baik dari kontrol acak, R:R median <0.5.
+Bug-bug berikut sudah diperbaiki (cari komentar `V1.2.1` di kode untuk detail
+& alasan tiap fix):
+
+- **Arah Second Sweep dibalik ke SISI YANG SAMA dengan first sweep**
+  (inducement), bukan sisi berlawanan seperti sebelumnya — ini yang paling
+  kritis; logika lama kontradiktif (menuntut rejection kontra-tesis yang
+  harus gagal sendiri sebelum tesis bisa lanjut). §4.6 sudah diperbarui.
+- **WAITING tidak lagi terkunci selamanya** — dulu bisa macet ribuan candle
+  (85-97% waktu di backtest) tanpa kedaluwarsa. Sekarang dibatalkan begitu
+  harga >3×ATR menjauh tanpa breach, plus cooldown 30 menit untuk level yang
+  baru gagal via breakout (`invalidLevel`, anti pola sama terbaca ulang).
+- **Hipotesis (WAIT) kedaluwarsa per-fase** (60 menit/fase, jangkar digeser
+  tiap fase maju: internal-liquidity-found → second-sweep-confirmed →
+  MSS-confirmed) — dulu tidak ada batas sama sekali.
+- **SL diperketat baru saat MSS terkonfirmasi** (bukan langsung saat first
+  sweep valid) — dulu R:R median saat CONFIRMED cuma ~0.2-0.5 karena SL
+  dijangkar terlalu dini. TP disegarkan dari liquidity eksternal terkini.
+- **R:R dihitung terarah** (negatif kalau TP ternyata di sisi salah) + gerbang
+  `minRR=1.0` sebelum status boleh CONFIRMED.
+- **FVG**: pencarian dibatasi 15 candle dari MSS, retest tidak lagi bisa
+  terpicu oleh candle FVG itu sendiri, kursor `fvgSearchFrom` mencegah
+  menemukan-ulang gap yang sama tanpa akhir.
+- **CONFIRMED tidak lagi membeku selamanya** — dilacak sampai TP/SL/time-stop
+  (`tradeMaxAgeMinutes=240`) lalu direset ke OBSERVE (siklus hidup trade).
+- **External liquidity** memilih fractal PALING EKSTREM yang belum tersapu
+  (`sweptExternal`), bukan cuma fractal terakhir, ditambah syarat momentum
+  approach yang disebut §4.3 tapi dulu belum diimplementasikan.
+- Bug kecil lain: candle dobel di jalur live, lookahead M5 saat replay,
+  off-by-one kursor MSS, ATR-at-candle-time anti-repaint untuk
+  displacement/FVG, `wickRatio` second sweep pakai nilai terbesar antara
+  breach & reclaim.
+
+**Hasil verifikasi**: WAITING-lock turun dari 85-97% jadi ~5-6% waktu,
+pipeline bisa mencapai retest (BTC 7/8 second-sweep-confirmed mencapai MSS,
+vs 1/8 sebelum fix), R:R sinyal yang lolos jadi wajar (median dulu ~0.2-0.5,
+sekarang mis. 1.09-2.58). Frekuensi sinyal makin RENDAH (disengaja, krn
+sekarang lebih ketat) — sampel yang tersedia masih terlalu kecil untuk
+mengklaim ada/tidaknya edge; itu di luar cakupan perbaikan ini (bugfix,
+bukan pembuktian profitabilitas).
+
+**Yang sengaja belum disentuh** (supaya tetap "bugfix", bukan redesign V2):
+`classifyPostSweep` masih longgar (gate post-sweep nyaris no-op), tidak ada
+filter sesi/killzone/berita/spread, bias/regime/VWAP masih kosmetik (§4.2),
+mode "points" sweep depth masih global per-instrumen, validasi input panel
+kalibrasi masih longgar.
+
+## 10. Panel Analisis Pasar & Dukungan Keputusan (V1.3, baru)
+
+Tombol **"📊 Analisis Pasar"** di topbar (sebelah "⚙ Kalibrasi") membuka
+modal lebar 4-tab yang menjawab empat kebutuhan yang sebelumnya tidak
+terlayani: melihat kondisi pasar lintas pair, menguji hipotesis atas histori
+yang sudah ada, melihat DAMPAK kuantitatif dari perubahan kalibrasi (bukan
+cuma mengubah ambang tanpa tahu efeknya), dan mempelajari hasil trade dari
+waktu ke waktu. Semuanya **murni observasional** — membaca/mensimulasikan
+ulang state mesin yang sudah ada tanpa mengubah gerbang/logika inti.
+
+**Prasyarat mesin** (dikerjakan sekali, dipakai ke-4 tab): `stepEngine`
+menerima parameter opsional ke-5 `hook` dan ke-6 `settings` (fallback ke
+`SETTINGS` aktif kalau tidak dioper — semua call-site lama tidak berubah
+perilakunya). Enam titik hook (`hypothesis_started`, `hypothesis_failed`×3
+alasan, `confirmed`, `trade_closed`) dipasang di sebelah `pushTimeline` yang
+sudah ada, tanpa mengubah kondisi gate apa pun. `replayHistory` direfaktor
+jadi wrapper tipis di atas primitif `runReplayLoop` (badan loop identik,
+termasuk filter anti-lookahead M5 dari V1.2.1) yang dipakai bersama oleh
+`simulateWithSettings(pairSyms, settingsOverride)` — satu-satunya jalur
+"jalankan mesin di atas histori" untuk tab Uji Hipotesis & Dampak Kalibrasi.
+
+- **Ringkasan Pasar**: tabel 12 pair (status, bias, regime, ATR, readiness%,
+  umur hipotesis/trade relatif terhadap `hypothesisMaxAgeMinutes`/
+  `tradeMaxAgeMinutes`, jarak ke liquidity, R:R, event terakhir, cakupan
+  histori) — murni render-layer, tanpa simulasi. Klik baris → lompat ke
+  detail pair itu. Auto-refresh 1Hz HANYA tab ini (tab lain tidak, supaya
+  input form yang sedang diisi tidak kehilangan fokus tiap detik).
+- **Uji Hipotesis**: jalankan `simulateWithSettings` untuk 1 atau 12 pair,
+  dengan kalibrasi aktif atau parameter alternatif (form yang sama dengan
+  panel Kalibrasi, di-reuse via `settingsRowHtml`). Hasil: hipotesis
+  terbentuk, CONFIRMED, alasan dibatalkan, outcome TP/SL/timeout, win-rate
+  dengan **interval Wilson** (bukan estimasi normal yang bisa keluar [0,1]
+  di sampel kecil), avg R:R. Bisa disimpan ke Jurnal ditandai "UJI" (badge
+  terpisah dari trade live, tidak pernah tercampur diam-diam).
+- **Dampak Kalibrasi**: tombol **"🔍 Pratinjau Dampak"** baru di footer panel
+  Kalibrasi menjalankan simulasi Sebelum (kalibrasi aktif) vs Sesudah (draft
+  di form) atas 12 pair, TANPA menekan "Terapkan" — supaya efek kalibrasi
+  terlihat SEBELUM dikomit. Setiap "Terapkan" mencatat diff + snapshot
+  pratinjau (kalau ada) ke riwayat (`lfc.calibrationHistory`, cap 50 entri).
+  Banner permanen (tidak bisa ditutup): perbandingan ini in-sample (data
+  yang sama dipakai untuk menguji), bukan out-of-sample.
+- **Jurnal Hasil**: setiap trade yang benar-benar berjalan sampai TP/SL/
+  time-stop di koneksi live dicatat otomatis (`lfc.journal`, cap 1000 entri,
+  forward-only — tidak diisi retroaktif dari histori sebelum fitur ini
+  dipasang) dengan entry/exit/R realisasi/durasi/snapshot kalibrasi saat
+  itu. Statistik agregat (win-rate ± CI, expectancy dalam R, breakdown per
+  pair) + ekspor JSON/CSV. Timeout selalu jadi bucket terpisah, tidak pernah
+  dipaksa jadi win/loss biner.
+- **Data & Privasi**: semua 3 dataset baru (`lfc.journal`,
+  `lfc.calibrationHistory`, `lfc.trials`) ada di localStorage browser —
+  tidak ada server. Tombol hapus per-dataset (dengan konfirmasi) tersedia
+  di tab Jurnal Hasil, independen satu sama lain.
+
+**Disiplin anti-p-hacking**: setiap kali "Jalankan Uji" atau "Pratinjau
+Dampak" ditekan, tercatat ke `lfc.trials` (cap 200). Penghitung ini
+ditampilkan permanen; makin banyak percobaan dalam satu sesi, makin besar
+peringatan yang muncul (>10 kuning, >30 merah) — supaya user sadar bahwa
+mengulang-ulang kalibrasi sampai kebetulan hasil bagus bukan bukti edge.
+Semua angka statistik (win-rate, dst.) didampingi ukuran sampel dan cakupan
+histori (candle + rentang jam/hari) — sampel di bawah 20 dapat peringatan,
+di bawah 10 dibulatkan ke persen terdekat (bukan desimal presisi palsu),
+di bawah 5 dapat peringatan tegas.
+
+**Di luar cakupan sesi ini**: telemetri level percobaan-sweep individual
+(alasan `too_shallow`/`too_deep`/dst. dari `evaluateSweep` sendiri, bukan
+cuma siklus hipotesis penuh), `CFG` (konstanta tetap seperti
+`hypothesisMaxAgeMinutes`) tetap tidak bisa dikalibrasi lewat UI (batas
+CFG/SETTINGS sengaja dijaga), tidak ada sumber histori eksternal baru di
+luar buffer in-memory aggregator yang sudah ada (~25 jam M1 untuk kripto,
+bergantung durasi koneksi untuk pair lain via `bridge.mjs`).
