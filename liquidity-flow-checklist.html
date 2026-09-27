@@ -378,20 +378,37 @@ const CFG = {
   // dulu berhenti, lihat catatan di §5) nyaris tak pernah ada 2 swing sedekat itu. 0.3 + window
   // yg lebih besar (lihat §5) menaikkan peluang deteksi tanpa membuat "equal" jadi terlalu longgar.
   equalTolAtrMult: 0.3,
-  rejectionWickRatio: 0.5,
+  // rejectionWickRatio: V1.2.2 0.5->0.4 -- kalibrasi ringan. Empat "second sweep breach+reclaim tapi
+  // wick rejection tipis" adalah salah satu penyumbang terbesar sinyal yg gagal sebelum sempat
+  // sampai Displacement (terbukti lewat backtest V1.2.1). 0.4 masih menuntut rejection yg jelas
+  // (bukan sekadar wick simbolis), cuma tidak seketat 50%.
+  rejectionWickRatio: 0.4,
   displacementCloseZone: 0.25,
-  fvgMinAtrMult: 0.2, fvgFillPct: 0.5,
+  // fvgFillPct: V1.2.2 0.5->0.65 -- kalibrasi ringan. Titik tersumbat PALING SERING di backtest:
+  // mayoritas retest gagal krn "FVG sudah terisi >50%" dalam 1-2 candle setelah FVG terbentuk --
+  // wajar utk M1 yg gerak cepat, bukan berarti gap-nya tidak valid lagi. 0.65 memberi sedikit lebih
+  // banyak ruang sebelum gap dianggap "sudah diambil semua", tanpa menghilangkan gate ini sepenuhnya.
+  fvgMinAtrMult: 0.2, fvgFillPct: 0.65,
   fvgMaxSearchCandles: 15,
-  retestWindow: 3, retestWickRatio: 0.4,
+  // retestWindow: V1.2.2 3->5 -- kalibrasi ringan. Titik tersumbat kedua: banyak retest yg mendekat
+  // tapi rejection wick-nya baru terbentuk di candle ke-4/5 setelah sentuhan pertama, bukan ke-1..3.
+  retestWindow: 5, retestWickRatio: 0.4,
   slBufferAtrMult: 0.1, slBufferMinTicks: 2,
   liquidityLookback: 50,
   // --- V1.2.1: perbaikan bug (lihat CHANGELOG di bawah bootstrap utk ringkasan) ---
   waitingAbandonAtrMult: 3,     // level WAITING dibatalkan kalau harga sudah sejauh ini tanpa breach
   levelCooldownMinutes: 30,     // level yg FAILED via continuation/too_deep/stale tak boleh diambil lagi selama ini
-  hypothesisMaxAgeMinutes: 60,  // batas umur hipotesis dari first-sweep VALID sampai CONFIRMED
+  // hypothesisMaxAgeMinutes: V1.2.2 60->90 -- kalibrasi ringan. 60 menit kadang keburu kedaluwarsa
+  // tepat saat fase second-sweep/range masih wajar berjalan (terutama pair yg lebih tenang dari
+  // BTC), padahal jangkarnya sudah digeser per-fase (lihat stepEngine §4-6). 90 memberi sedikit
+  // lebih banyak napas tanpa membiarkan hipotesis basi menggantung berjam-jam spt sebelum V1.2.1.
+  hypothesisMaxAgeMinutes: 90,
   secondSweepMaxRetries: 20,    // batas percobaan ulang second sweep sebelum hipotesis dianggap basi
   tradeMaxAgeMinutes: 240,      // time-stop setelah CONFIRMED (posisi dianggap terbuka)
-  minRR: 1.0,                   // R:R minimum saat retest tertolak, kalau tidak terpenuhi -> tidak CONFIRMED
+  // minRR: V1.2.2 1.0->0.8 -- kalibrasi ringan, BUKAN kembali ke 0/tanpa gerbang spt sebelum
+  // V1.2.1 (yg terbukti R:R median cuma ~0.2-0.5 dgn TP sering di sisi salah). 0.8 masih menolak
+  // setup lemah, cuma tidak seketat "harus untung lebih besar dari risiko" (>=1.0).
+  minRR: 0.8,
   extLiquidityMatchAtrMult: 0.1,// toleransi pencocokan level dgn memori sweptExternal/invalidLevel
 };
 
@@ -410,15 +427,18 @@ const T = {
 // dikunci di kode) -- lihat SETTINGS_SCHEMA utk daftar field & tipe input yg dirender otomatis.
 // rangeMinCandles/rangeMaxCandles/rangeMaxWidthAtr menggantikan CFG.rangeMinCandles/rangeMaxWindow/
 // rangeMaxAtrWidth (default sama: 6/24/2.0, sudah terbukti lewat Monte Carlo -- lihat blueprint §4.4).
+// V1.2.2: 4 nilai di bawah diringankan dari default V1.1/V1.2.1 (0.5 / 3 / 2.0 / 1.5) berdasarkan
+// backtest -- semuanya masih tetap bisa diubah balik lewat panel Kalibrasi kalau mau lebih ketat lagi,
+// ini cuma menggeser titik awal ("default pabrik") biar CONFIRMED lebih mudah terbentuk secara wajar.
 const DEFAULT_SETTINGS = {
   sweepDepthMode: 'atr',          // 'atr' | 'points'
-  sweepDepthMinAtr: 0.5, sweepDepthMaxAtr: 2.0,
+  sweepDepthMinAtr: 0.35, sweepDepthMaxAtr: 2.0, // min diringankan 0.5->0.35: stop-run dangkal (0.35-0.5 ATR) yg sah dulu tertolak "too_shallow"
   sweepDepthMinPts: 1.0, sweepDepthMaxPts: 15,
-  reclaimMaxCandles: 3,
-  rangeMinCandles: 6, rangeMaxCandles: 24, rangeMaxWidthAtr: 2.0,
+  reclaimMaxCandles: 4, // diringankan 3->4: beri satu candle tambahan utk harga reclaim balik
+  rangeMinCandles: 6, rangeMaxCandles: 24, rangeMaxWidthAtr: 2.3, // diringankan 2.0->2.3: lebih banyak kandidat range yg "muat"
   compressionEnabled: true, compressionPct: 70,
   displacementMode: 'atr',        // 'atr' | 'medianBody'
-  displacementAtrMult: 1.5, displacementMedianBodyMult: 1.2,
+  displacementAtrMult: 1.3, displacementMedianBodyMult: 1.2, // diringankan 1.5->1.3: displacement tetap harus kuat, cuma tidak seketat 1.5xATR
   mssRequireClose: true,           // true = wajib CLOSE tembus struktur; false = wick tembus sudah cukup
 };
 
