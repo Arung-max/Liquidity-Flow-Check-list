@@ -109,6 +109,10 @@
   .chart-meta .price-val{font-size:15px;color:var(--text);}
   .chart-meta .bias-chip{font-family:var(--mono);font-weight:700;font-size:10.5px;padding:2px 8px;
     border-radius:20px;background:var(--panel3);border:1px solid var(--line);}
+  .candle-countdown{font-family:var(--mono);font-weight:700;font-size:10.5px;padding:2px 8px;
+    border-radius:20px;background:var(--panel3);border:1px solid var(--line);color:var(--mut);
+    transition:color .2s ease,border-color .2s ease;}
+  .candle-countdown.soon{color:var(--orange);border-color:#4A3216;animation:blinkDot 1s ease-in-out infinite;}
   .price-val.flash-up{animation:flashUp 900ms ease-out;}
   .price-val.flash-down{animation:flashDown 900ms ease-out;}
 
@@ -477,6 +481,19 @@ function sweepDepthTooDeep(depthPrice, atr, settings){
 
 function fmt(px, dp){ if(px==null||!isFinite(px)) return '—'; return px.toFixed(dp); }
 function fmtTime(ts){ const d=new Date(ts); return d.toTimeString().slice(0,8); }
+
+// Hitung mundur ke penutupan candle M1 SAAT INI (= pembentukan candle baru), sinkron dgn rumus
+// bucket yg sama persis dipakai makeAggregator (bucket = floor(ts/period)*period) -- tidak perlu
+// baca state internal aggregator, cukup jam wall-clock, jadi selalu akurat walau candle live blm
+// pernah masuk sama sekali (mis. baru buka app / sedang menunggu tick pertama).
+function secondsToNextCandle(periodSec){
+  const periodMs = periodSec*1000;
+  return Math.ceil((periodMs - (Date.now() % periodMs)) / 1000);
+}
+function fmtCountdown(totalSec){
+  const m = Math.floor(totalSec/60), s = totalSec%60;
+  return m>0 ? (m+':'+String(s).padStart(2,'0')) : ('0:'+String(s).padStart(2,'0'));
+}
 function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
 
 function trueRange(c, prevClose){
@@ -639,7 +656,7 @@ async function fetchBinanceKlines(sym, interval, limit){
 async function backfillBinance(asset, retried){
   try {
     const [m1, m5] = await Promise.all([
-      fetchBinanceKlines(asset.sym, '1m', 180), // ~3 jam
+      fetchBinanceKlines(asset.sym, '1m', 500), // ~8.3 jam -- cukup utk isi chart 500 candle sejak awal
       fetchBinanceKlines(asset.sym, '5m', 200), // ~16 jam (cukup utk lookback M5 §4.3)
     ]);
     return { m1, m5 };
@@ -1416,8 +1433,9 @@ function initAsset(asset){
   const app = { asset, engine:newEngineState(asset), meta:null, connState:'sim', connMsg:'Belum tersambung', conn:null, vwap:newVwapState(),
     // Jendela chart per-pair: follow=true selalu ikut candle terbaru; begitu digeser (drag),
     // follow=false dan endIdx dikunci absolut -- TIDAK ikut maju walau candle baru terus masuk,
-    // sampai user klik dua kali / tombol "kembali ke live".
-    chartView: { follow:true, endIdx:0, count:90 } };
+    // sampai user klik dua kali / tombol "kembali ke live". count:500 -- tampilkan 500 candle
+    // sekaligus (bisa di-zoom in/out lewat scroll wheel, lihat wireChartInteraction).
+    chartView: { follow:true, endIdx:0, count:500 } };
   app.m1Agg = makeAggregator(CFG.m1Sec, 1500, ()=>{ recompute(app); });
   app.m5Agg = makeAggregator(CFG.m5Sec, 800, null);
   APP[asset.sym] = app;
@@ -2493,6 +2511,7 @@ function renderDetail(){
         + '<span class="chart-meta">'
           + '<b class="price-val'+flashCls+'">'+fmt(eng.price,asset.dp)+'</b>'
           + '<span class="bias-chip" style="color:'+(eng.bias==='BULLISH'?'var(--green)':eng.bias==='BEARISH'?'var(--red)':'var(--mut)')+'">'+eng.bias+'</span>'
+          + (()=>{ const s=secondsToNextCandle(CFG.m1Sec); return '<span class="candle-countdown'+(s<=10?' soon':'')+'" title="Waktu sampai candle M1 baru terbentuk">⏱ M1 '+fmtCountdown(s)+'</span>'; })()
           + conn + ' &nbsp; ' + (app.connMsg||'')
           + (app.chartView.follow ? '' : '<button class="btn-live" id="btnBackLive">▶ Kembali ke Live</button>')
         + '</span>'
