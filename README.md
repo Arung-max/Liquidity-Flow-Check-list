@@ -33,8 +33,21 @@ histori trendbar cTrader yang diteruskan bridge. Fitur bridge ini butuh
 `bridge.mjs` versi yang sudah mendukung `GET_TRENDBARS_REQ`/`RES`; lihat
 blueprint §6.1–6.2 untuk detail protokolnya.
 
+Histori yang dimuat kini sampai **3300 candle** (3000 untuk backtest + ~300 pemanasan)
+untuk M1 dan M5. Setelah `bridge.mjs` diubah (minta 3300 trendbar), **restart bridge**
+agar pair non-kripto ikut mendapat histori sepanjang itu.
+
 Buka `liquidity-flow-checklist.html` langsung di browser (dobel klik, atau lewat
 `file://`) — tidak perlu server statis.
+
+## Backtest & simulasi trading
+
+Tombol **🧪 Backtest** di topbar: simulator akun di atas candle historis (M1 atau M5, sampai
+3000 candle) dengan panel BUY/SELL (market/limit/stop, SL/TP, ukuran lot atau risiko %),
+tambah/tarik modal, tabel portofolio & riwayat trade, laporan kinerja (profit factor, drawdown,
+TWR, Sharpe, dst.), kurva ekuitas, ekspor CSV, dan **Backtest Otomatis** yang mengeksekusi sinyal
+CONFIRMED dari mesin. Tanpa data pasar, pilih "Data demo sintetis" untuk mencoba fiturnya.
+Detail model eksekusi dan batasannya ada di blueprint §11.
 
 ## Live preview dengan auto-reload (opsional, buat yang lagi ikut kembangkan)
 

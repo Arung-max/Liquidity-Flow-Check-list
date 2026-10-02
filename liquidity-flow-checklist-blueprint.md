@@ -1,4 +1,4 @@
-# Liquidity Flow Checklist — Blueprint V1.3
+# Liquidity Flow Checklist — Blueprint V1.4
 
 > V1.0 adalah konsep & mockup ASCII. V1.1 ini mengisi setiap celah yang membuat
 > V1.0 tidak bisa langsung dikodekan: ambang angka, urutan gate yang tidak
@@ -621,3 +621,63 @@ cuma siklus hipotesis penuh), `CFG` (konstanta tetap seperti
 CFG/SETTINGS sengaja dijaga), tidak ada sumber histori eksternal baru di
 luar buffer in-memory aggregator yang sudah ada (~25 jam M1 untuk kripto,
 bergantung durasi koneksi untuk pair lain via `bridge.mjs`).
+
+
+## 11. Backtest & Simulasi Trading, buffer 3000 candle, timeframe M5 (V1.4, baru)
+
+Tombol **"🧪 Backtest"** di topbar membuka simulator akun trading di atas candle historis. Dua cara
+pakai pada simulasi yang sama: (a) **Backtest Otomatis** — mesin Liquidity Flow dijalankan di seluruh
+rentang dan setiap sinyal CONFIRMED dieksekusi otomatis; (b) **Replay manual** — candle dimajukan satu
+per satu (Play/+1/+10/+100/Sampai Akhir, 1–100 candle/detik) sambil Anda BUY/SELL sendiri.
+
+**Data.** Buffer per timeframe dinaikkan ke **3500 candle** (`AGG_CAP`) = 3000 untuk backtest + ~300
+pemanasan. Binance: backfill berhalaman mundur (`fetchBinanceKlinesPaged`, 1000 candle/request,
+`endTime` = openTime tertua − 1, halaman lama yang gagal tidak membuang yang sudah didapat) untuk M1
+**dan M5** (`BACKFILL_CANDLES = 3300`). `bridge.mjs` (pair non-kripto) meminta 3300 trendbar M1 & M5 —
+batas maksimum yang diizinkan broker belum diverifikasi; apa pun yang diterima dipakai. Sumber data
+backtest: **Data pasar** (buffer aplikasi) atau **Data demo sintetis** (random-walk berseed + pola setup
+Liquidity Flow yang disisipkan agar mesin punya sinyal; BUKAN pasar — ditandai jelas di UI dan laporan).
+Mesin (`stepEngine`) tetap hanya melihat jendela terakhir (`ENGINE_WIN_BASE` = 1500 candle, konteks 800)
+persis seperti ketika buffer dibatasi 1500/800: ATR SMA-14, swing, range, dan umur hipotesis semuanya
+lokal, jadi hasilnya identik tetapi tiap langkah O(1500), bukan O(n). Replay live dibatasi
+`LIVE_REPLAY_CANDLES` = 1500 terakhir; pratinjau kalibrasi (§10) juga 1500 — backtest 3000 penuh punya
+jalurnya sendiri (1 pair, dipecah per-chunk ~40 ms agar UI tidak membeku; ±1 detik per 3000 candle).
+
+**Timeframe M5.** Backtest bisa berjalan di M1 (konteks M5) atau M5 (konteks M15, hasil resample).
+Konstanta berbasis menit (`levelCooldownMinutes`, `hypothesisMaxAgeMinutes`, `tradeMaxAgeMinutes`) dikalikan
+`settings.tfMul` (1 untuk M1, 5 untuk M5) supaya batasnya setara dalam JUMLAH CANDLE, bukan 5× lebih
+ketat. Chart utama juga punya toggle **M1 | M5** (jendela terpisah per TF; countdown ikut TF; kurva VWAP
+hanya ada di M1 karena field vwap hanya diisi pada candle M1).
+
+**Model eksekusi** (bagian 6e di kode — murni & diuji di Node):
+- Harga data = MID; spread dimodelkan bid = mid − hs / ask = mid + hs. Order market diisi di CLOSE candle
+  terakhir yang terlihat (+ spread/2 + slippage) — tidak mengintip candle berikutnya; SL/TP dievaluasi
+  mulai candle berikutnya. Sinyal mesin dieksekusi di close candle sinyal (sama dengan asumsi entry mesin).
+- SL = stop order (gap melewati SL → terisi di open yang lebih buruk, + slippage); TP = limit order
+  (terisi di TP atau lebih baik, tanpa slippage). SL & TP tersentuh di satu candle: default **pesimis**
+  (SL dulu); bisa optimis atau "terdekat dari open".
+- Order pending Limit/Stop (terisi saat disentuh candle), SL/TP bisa diedit per posisi, SL→BE, tutup
+  satu/semua, batalkan order. Ukuran: lot langsung atau **risiko % ekuitas** (butuh SL). SL/TP bisa
+  "× ATR" / "× R" (berlaku untuk BUY maupun SELL) atau harga absolut.
+- Biaya: spread (tick), slippage (tick), komisi % notional + per lot — default per instrumen
+  (kripto 0,04%; XAU/XAG/forex $3,5/lot; indeks 0). Kontrak per lot: kripto 1, XAU 100, XAG 5000, forex
+  100.000, indeks 1; USDJPY P/L dikonversi ke USD (÷ harga).
+- Margin = notional/leverage; **stop-out** menutup semua posisi saat margin level < ambang (default 50%).
+  Pergerakan sangat cepat bisa menembus stop-out sehingga saldo negatif (tidak ada negative-balance
+  protection). Posisi sisa di akhir data ditutup di close terakhir (alasan "AKHIR DATA").
+- **Modal**: tambah/tarik modal kapan saja. Setoran/penarikan tidak merusak metrik: peak drawdown
+  disesuaikan arus modal dan return TWR dihitung per candle dengan koreksi arus.
+
+**Panel & laporan.** Akun (saldo, ekuitas, P/L mengambang, margin terpakai/bebas/level, setoran, P/L
+bersih), Panel Order (BUY/SELL + preview ukuran/risiko/margin), tab **Portofolio** (ringkasan instrumen,
+posisi terbuka, order pending), **Riwayat Trade** (kotor, biaya, bersih, R, MAE/MFE, CSV), **Laporan**
+(P/L bersih, return terhadap setoran, TWR, buy&hold, profit factor, win rate + interval Wilson,
+expectancy $/R, payoff, drawdown maks & terpanjang, recovery factor, eksposur, komisi, per arah, sinyal
+mesin), **Kurva Ekuitas** (ekuitas, saldo, setoran/penarikan, drawdown %), dan **Log**. Sharpe/Sortino
+dihitung dari return **per jam** dan baru ditampilkan bila ≥ 24 jam data (return per-candle menghasilkan
+angka absurd karena sebagian besar candle tanpa posisi) — tetap annualisasi kasar.
+
+**Batasan jujur.** Ini backtest in-sample pada beberapa hari data (3000 candle M1 ≈ 50 jam; M5 ≈ 10 hari),
+sinyal mesin jarang (puluhan jam per sinyal), jadi jumlah trade biasanya satu digit — sampel kecil diberi
+peringatan bertingkat dan TIDAK boleh dibaca sebagai bukti edge. Satu simulasi = satu pair (portofolio
+multi-pair belum ada). Candle antar-gap (pasar tutup) tidak dimodelkan khusus.
