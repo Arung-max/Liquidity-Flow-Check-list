@@ -66,8 +66,10 @@
   .dot.err{background:var(--red);}
 
   .layout{display:flex;flex:1;min-height:0;}
-  .scanner{width:390px;flex:0 0 390px;border-right:1px solid var(--line);overflow-y:auto;background:var(--bg);
+  .scanner{width:390px;flex:0 0 390px;border-right:1px solid var(--line);background:var(--bg);
+    display:flex;flex-direction:column;min-height:0;
     animation:appIn .5s .05s var(--ease-pop) both;}
+  .scanner-pairs{flex:0 1 auto;overflow-y:auto;min-height:0;}
   .scanner-hd{padding:10px 14px;color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.06em;
     border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:2;}
   .row{display:flex;align-items:center;gap:8px;padding:9px 14px 9px 11px;border-bottom:1px solid var(--line-soft);
@@ -79,10 +81,13 @@
   .row .bias{width:64px;flex:0 0 64px;font-size:10.5px;}
   .row .badge{margin-left:auto;flex:0 0 auto;}
   .row .rdy{width:40px;flex:0 0 40px;text-align:right;color:var(--mut);font-size:10.5px;font-family:var(--mono);}
-  .scanner::-webkit-scrollbar{width:8px;}
-  .scanner::-webkit-scrollbar-track{background:transparent;}
-  .scanner::-webkit-scrollbar-thumb{background:var(--panel3);border-radius:8px;}
-  .scanner::-webkit-scrollbar-thumb:hover{background:var(--mut2);}
+  .scanner-pairs::-webkit-scrollbar{width:8px;}
+  .scanner-pairs::-webkit-scrollbar-track{background:transparent;}
+  .scanner-pairs::-webkit-scrollbar-thumb{background:var(--panel3);border-radius:8px;}
+  .scanner-pairs::-webkit-scrollbar-thumb:hover{background:var(--mut2);}
+  .scanner-timeline-panel{flex:1 1 auto;min-height:160px;display:flex;flex-direction:column;
+    border-top:1px solid var(--line);}
+  .scanner-timeline-panel .timeline{flex:1;overflow-y:auto;max-height:none;padding:4px 14px 10px;}
 
   .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;
     font-size:10.5px;font-weight:700;letter-spacing:.02em;white-space:nowrap;border:1px solid transparent;}
@@ -133,6 +138,17 @@
   .section-hd{font-size:10px;color:var(--mut2);text-transform:uppercase;letter-spacing:.08em;
     margin:12px 0 4px;}
   .section-hd:first-child{margin-top:0;}
+
+  .cond-group{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin:2px 0 4px;}
+  .cond-tag{background:var(--panel3);border:1px solid var(--line);border-radius:8px;padding:7px 10px;
+    font-size:11.5px;line-height:1.35;transition:border-color .15s ease;}
+  .cond-tag:hover{border-color:var(--blue);}
+  .cond-tag .code{font-family:var(--mono);font-weight:700;color:var(--blue);font-size:10.5px;margin-right:4px;}
+  .cond-tag b{color:var(--text);}
+  .cond-tag .desc{display:block;color:var(--mut);font-size:10.5px;margin-top:2px;}
+  .cond-tag.proxy{border-style:dashed;border-color:#4A3D16;}
+  .cond-tag.proxy .code{color:var(--yellow);}
+  .cond-tag.proxy:hover{border-color:var(--yellow);}
 
   .bar-row{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:11.5px;}
   .bar-row .lbl{width:96px;flex:0 0 96px;color:var(--mut);}
@@ -239,7 +255,9 @@
   @media (max-width:1000px){ .detail{grid-template-columns:1fr;} .scanner{width:280px;flex:0 0 280px;} }
   @media (max-width:760px){
     .layout{flex-direction:column;}
-    .scanner{width:100%;flex:0 0 auto;max-height:240px;border-right:none;border-bottom:1px solid var(--line);}
+    .scanner{width:100%;flex:0 0 auto;max-height:420px;border-right:none;border-bottom:1px solid var(--line);}
+    .scanner-pairs{max-height:220px;}
+    .scanner-timeline-panel{max-height:180px;min-height:120px;}
     canvas#chart{height:300px;}
     .detail{grid-template-columns:1fr;padding:14px;gap:12px;}
   }
@@ -270,8 +288,14 @@
 
   <div class="layout">
     <div class="scanner">
-      <div class="scanner-hd">Roadmap Pair (klik untuk detail)</div>
-      <div id="scannerBody"></div>
+      <div class="scanner-pairs">
+        <div class="scanner-hd">Roadmap Pair (klik untuk detail)</div>
+        <div id="scannerBody"></div>
+      </div>
+      <div class="scanner-timeline-panel">
+        <div class="scanner-hd" id="scannerTimelineTitle">Market Timeline</div>
+        <div class="timeline" id="scannerTimelineBody"></div>
+      </div>
     </div>
     <div class="detail" id="detailBody"></div>
   </div>
@@ -711,6 +735,42 @@ function updateVwap(vw, ts, price, size){
     const variance = Math.max(vw.ppv/vw.v - vw.vwap*vw.vwap, 0);
     vw.std = Math.sqrt(variance);
   } else if(vw.vwap===null) vw.vwap = price;
+}
+
+/* --------- Rolling buy/sell volume per bucket M1, dipakai anotasi Order Flow (§ANOT) ---------
+   TERPISAH dari mesin liquidity flow -- tidak pernah dibaca oleh stepEngine, murni lapisan
+   anotasi baca-saja. `side`/`inferred` datang dari trade message: Binance kirim sisi TAKER asli
+   (inferred:false) lewat flag `m` di aggTrade; bridge.mjs (cTrader, semua pair non-kripto) kirim
+   sisi HASIL SIMPULAN (inferred:true, lihat catatan VWAP di atas) -- makanya confidence-nya beda
+   dan ditandai di panel, BUKAN dianggap sama pastinya. */
+function newFlowState(){ return { bucket:null, buyVol:0, sellVol:0, history:[], inferred:null }; }
+function updateFlow(fs, ts, side, size, inferred){
+  const bucket = Math.floor(ts/(CFG.m1Sec*1000))*(CFG.m1Sec*1000);
+  if(fs.bucket===null) fs.bucket = bucket;
+  else if(bucket!==fs.bucket){
+    fs.history.push({ t:fs.bucket, buyVol:fs.buyVol, sellVol:fs.sellVol });
+    if(fs.history.length>30) fs.history.shift();
+    fs.buyVol=0; fs.sellVol=0; fs.bucket=bucket;
+  }
+  const sz = size>0 ? size : 1;
+  if(side==='buy') fs.buyVol+=sz; else if(side==='sell') fs.sellVol+=sz;
+  fs.inferred = !!inferred;
+}
+// Ringkasan N bucket terakhir (bucket berjalan + histori) -- dipakai detectMarketConditions.
+function summarizeFlow(fs, lookback){
+  const recent = fs.history.slice(-lookback);
+  const buyVol = recent.reduce((a,b)=>a+b.buyVol,0) + fs.buyVol;
+  const sellVol = recent.reduce((a,b)=>a+b.sellVol,0) + fs.sellVol;
+  const total = buyVol+sellVol;
+  const ratio = total>0 ? (buyVol-sellVol)/total : 0;
+  const prior = fs.history.slice(-lookback-2,-lookback);
+  const priorAvgBuy = prior.length ? prior.reduce((a,b)=>a+b.buyVol,0)/prior.length : null;
+  const priorAvgSell = prior.length ? prior.reduce((a,b)=>a+b.sellVol,0)/prior.length : null;
+  return {
+    buyVol, sellVol, total, ratio, inferred: fs.inferred,
+    buySpike: priorAvgBuy!=null && priorAvgBuy>0 && fs.buyVol > priorAvgBuy*2.2,
+    sellSpike: priorAvgSell!=null && priorAvgSell>0 && fs.sellVol > priorAvgSell*2.2,
+  };
 }
 
 /* ============================= 4. MESIN LIQUIDITY FLOW ============================= */
@@ -1362,6 +1422,165 @@ function readiness(st){
   return { liquidity:liq, structure, displacement, mss, fvg, retest };
 }
 
+/* ==================== §ANOT. ANOTASI KONDISI PASAR (kode ICT, panel terpisah) ====================
+   Lapisan BACA-SAJA di atas eng/app yang sudah dihitung mesin V1.2.1 -- tidak pernah menulis balik
+   ke eng, tidak pernah memengaruhi status/gate. Setiap definisi test(eng,app) murni membaca field
+   yang sudah ada (atau app.flow, tracker volume beli/jual terpisah di atas). Beberapa kode SENGAJA
+   tumpang tindih (mis. LQ01 & LQ05) -- itu wajar dalam istilah ICT, bukan bug duplikat.
+   Kategori OF (Order Flow) & sebagian NT (News) TIDAK punya sumber data sungguhan di app ini:
+   - OF: kripto pakai sisi taker ASLI dari Binance aggTrade (confidence lebih tinggi, ditandai
+     "tape asli"); pair lain cuma dapat sisi HASIL SIMPULAN dari bridge.mjs (confidence rendah,
+     ditandai "arah disimpulkan, bukan tape asli").
+   - NT: tidak ada feed berita sama sekali -- NT01/03/04 jadi proksi lonjakan volatilitas semata
+     (ditandai "perkiraan kasar, BUKAN konfirmasi ada berita"). NT02 (Pre-News Positioning) TIDAK
+     diimplementasikan sama sekali -- butuh kalender berita yang tidak dimiliki app ini, jadi
+     dipaksakan pun cuma tebakan kosong; dibiarkan tidak pernah muncul daripada memalsukan sinyal.
+   Ini alat bantu observasi, BUKAN sinyal beli/jual otomatis dan BUKAN nasihat investasi -- sama
+   seperti disclaimer yang sudah ada di footer & panel Analisis Pasar. */
+function utcClock(ts){ const d=new Date(ts); return { h:d.getUTCHours(), m:d.getUTCMinutes() }; }
+function minutesSinceUTC(ts, hour){
+  const c = utcClock(ts); let mins = (c.h-hour)*60 + c.m; if(mins<0) mins += 1440; return mins;
+}
+function inSession(ts, startH, endH){ const h = utcClock(ts).h; return startH<=endH ? (h>=startH&&h<endH) : (h>=startH||h<endH); }
+
+const MARKET_CONDITION_DEFS = [
+  { code:'LQ01', cat:'LQ', title:'Liquidity Sweep', text:'Harga menyapu liquidity di atas/bawah level penting.',
+    test:(e)=> !!(e.activeSweep && e.activeSweep.state==='VALID') },
+  { code:'LQ02', cat:'LQ', title:'Liquidity Grab', text:'Harga mengambil order sebelum menentukan arah berikutnya.',
+    test:(e)=> !!(e.secondSweep && e.secondSweep.state==='VALID') },
+  { code:'LQ03', cat:'LQ', title:'Stop Hunt', text:'Pergerakan berpotensi memicu stop-loss yang terkumpul di area tersebut.',
+    test:(e)=> !!(e.activeSweep && e.activeSweep.state==='PARTIAL') },
+  { code:'LQ04', cat:'LQ', title:'Equal High/Low Sweep', text:'Harga mengambil liquidity dari equal high/low.',
+    test:(e)=> !!(e.internalLiquidity && e.internalLiquidity.density!=='LOW') },
+  { code:'LQ05', cat:'LQ', title:'Previous High/Low Sweep', text:'Harga menyapu high/low sebelumnya.',
+    test:(e)=> !!(e.activeSweep && e.activeSweep.state==='VALID') },
+  { code:'LQ06', cat:'LQ', title:'Session Liquidity Sweep', text:'Harga mengambil liquidity dari sesi sebelumnya.',
+    test:(e,a,ts)=> !!(e.activeSweep && e.activeSweep.state==='VALID') && (minutesSinceUTC(ts,7)<=45 || minutesSinceUTC(ts,12)<=45) },
+  { code:'LQ07', cat:'LQ', title:'Stop Cascade', text:'Stop order beruntun kemungkinan mempercepat pergerakan.',
+    test:(e)=> !!(e.activeSweep && (e.activeSweep.wickRatio||0)>0.7 && e.displacement) },
+
+  { code:'BR01', cat:'BR', title:'Valid Breakout', text:'Harga menembus struktur dengan momentum dan berpotensi melanjutkan.',
+    test:(e)=> !!(e.displacement && e.mss) },
+  { code:'BR02', cat:'BR', title:'False Breakout', text:'Breakout gagal dan harga kembali ke dalam range.',
+    test:(e)=> !!(e.activeSweep && e.activeSweep.state==='FAILED') },
+  { code:'BR03', cat:'BR', title:'Breakout Retest', text:'Harga kembali menguji level yang baru ditembus.',
+    test:(e)=> !!(e.fvg && e.retest) },
+  { code:'BR04', cat:'BR', title:'Range Expansion', text:'Market keluar dari fase konsolidasi dengan impuls kuat.',
+    test:(e)=> e.regime==='TRENDING' && e.volLabel==='TINGGI' },
+
+  { code:'ST01', cat:'ST', title:'Bullish Continuation', text:'Struktur mendukung kelanjutan kenaikan.',
+    test:(e)=> e.bias==='BULLISH' && e.regime==='TRENDING' },
+  { code:'ST02', cat:'ST', title:'Bearish Continuation', text:'Struktur mendukung kelanjutan penurunan.',
+    test:(e)=> e.bias==='BEARISH' && e.regime==='TRENDING' },
+  { code:'ST03', cat:'ST', title:'Potential Reversal', text:'Reaksi harga menunjukkan kemungkinan perubahan arah.',
+    test:(e)=> !!(e.activeSweep && e.activeSweep.state==='VALID') && e.postSweepState!=='continuation' },
+  { code:'ST04', cat:'ST', title:'Structure Break', text:'Struktur sebelumnya telah ditembus.',
+    test:(e)=> !!e.mss },
+  { code:'ST05', cat:'ST', title:'MSS/CHOCH', text:'Terjadi perubahan karakter/perilaku struktur market.',
+    test:(e,a,ts)=> !!(e.mss && (ts-e.mss.ts) <= 15*60*1000) },
+  { code:'ST06', cat:'ST', title:'Range Condition', text:'Market masih berada dalam kondisi sideways/konsolidasi.',
+    test:(e)=> e.regime==='RANGING' },
+
+  { code:'OF01', cat:'OF', title:'Buying Pressure', text:'Tekanan beli terlihat meningkat.', proxy:true,
+    test:(e,a)=> summarizeFlow(a.flow,10).ratio > 0.15 },
+  { code:'OF02', cat:'OF', title:'Selling Pressure', text:'Tekanan jual terlihat meningkat.', proxy:true,
+    test:(e,a)=> summarizeFlow(a.flow,10).ratio < -0.15 },
+  { code:'OF03', cat:'OF', title:'Order Imbalance', text:'Terjadi ketidakseimbangan tekanan beli dan jual.', proxy:true,
+    test:(e,a)=> Math.abs(summarizeFlow(a.flow,10).ratio) > 0.35 },
+  { code:'OF04', cat:'OF', title:'Aggressive Buying', text:'Buyer terlihat lebih agresif dalam mendorong harga.', proxy:true,
+    test:(e,a)=> summarizeFlow(a.flow,10).buySpike },
+  { code:'OF05', cat:'OF', title:'Aggressive Selling', text:'Seller terlihat lebih agresif dalam mendorong harga.', proxy:true,
+    test:(e,a)=> summarizeFlow(a.flow,10).sellSpike },
+  { code:'OF06', cat:'OF', title:'Profit Taking', text:'Pergerakan mungkin dipicu pengambilan keuntungan posisi sebelumnya.', proxy:true,
+    test:(e,a)=> e.bias==='BULLISH' && (a.vwap.std>0) && ((e.price-a.vwap.vwap)/a.vwap.std)>1.5 && summarizeFlow(a.flow,5).ratio<-0.1 },
+  { code:'OF07', cat:'OF', title:'Position Unwinding', text:'Posisi lama kemungkinan sedang ditutup/dikurangi.', proxy:true,
+    test:(e,a)=> e.bias==='BEARISH' && (a.vwap.std>0) && ((a.vwap.vwap-e.price)/a.vwap.std)>1.5 && summarizeFlow(a.flow,5).ratio>0.1 },
+
+  { code:'IM01', cat:'IM', title:'Imbalance Fill', text:'Harga kembali mengisi area pergerakan yang sebelumnya terlalu cepat.',
+    test:(e)=> !!(e.fvg && e.fvg.filled>0) },
+  { code:'IM02', cat:'IM', title:'FVG Mitigation', text:'Harga kembali menguji/mitigasi area FVG.',
+    test:(e)=> !!(e.fvg && e.retest) },
+  { code:'IM03', cat:'IM', title:'Supply Reaction', text:'Harga bereaksi terhadap area supply.',
+    test:(e)=> !!(e.internalLiquidity && e.internalLiquidity.dir==='above') },
+  { code:'IM04', cat:'IM', title:'Demand Reaction', text:'Harga bereaksi terhadap area demand.',
+    test:(e)=> !!(e.internalLiquidity && e.internalLiquidity.dir==='below') },
+
+  { code:'NT01', cat:'NT', title:'News Reaction', text:'Pergerakan kemungkinan dipicu berita/data ekonomi.', proxy:true,
+    test:(e)=> e.volLabel==='TINGGI' && !!e.displacement },
+  { code:'NT03', cat:'NT', title:'Post-News Expansion', text:'Pergerakan terjadi setelah rilis berita/data.', proxy:true,
+    test:(e)=> e.volLabel==='TINGGI' && e.regime==='TRENDING' },
+  { code:'NT04', cat:'NT', title:'News Spike', text:'Lonjakan harga berpotensi berasal dari volatilitas berita.', proxy:true,
+    test:(e)=> e.volLabel==='TINGGI' && !!e.atr && !!e.price },
+
+  { code:'SS01', cat:'SS', title:'Session Open', text:'Perubahan aktivitas terjadi saat pembukaan sesi.',
+    test:(e,a,ts)=> minutesSinceUTC(ts,7)<=20 || minutesSinceUTC(ts,12)<=20 },
+  { code:'SS02', cat:'SS', title:'London Expansion', text:'Aktivitas meningkat memasuki sesi London.',
+    test:(e,a,ts)=> inSession(ts,7,16) && (e.regime==='TRENDING' || e.volLabel==='TINGGI') },
+  { code:'SS03', cat:'SS', title:'New York Expansion', text:'Aktivitas meningkat memasuki sesi New York.',
+    test:(e,a,ts)=> inSession(ts,12,21) && (e.regime==='TRENDING' || e.volLabel==='TINGGI') },
+  { code:'SS04', cat:'SS', title:'Session Reversal', text:'Market berbalik setelah mengambil liquidity sesi sebelumnya.',
+    test:(e,a,ts)=> !!(e.activeSweep && e.activeSweep.state==='VALID') && (minutesSinceUTC(ts,7)<=45 || minutesSinceUTC(ts,12)<=45) },
+
+  // MR01: dulu tesnya TERBALIK (|z|<=1, yaitu harga justru DEKAT VWAP = tidak ada yg perlu "kembali").
+  // Mean reversion butuh harga sudah menjauh dari nilai rata-rata (>1σ dari VWAP) DAN market sedang
+  // RANGING -- di regime TRENDING, menjauh dari VWAP lazimnya kelanjutan tren, bukan peluang kembali.
+  { code:'MR01', cat:'MR', title:'Mean Reversion', text:'Harga menjauh dari VWAP saat market ranging — berpotensi kembali menuju nilai/range sebelumnya.',
+    test:(e,a)=> e.regime==='RANGING' && a.vwap.std>0 && Math.abs((e.price-a.vwap.vwap)/a.vwap.std) > 1 },
+  { code:'MR02', cat:'MR', title:'Overextension', text:'Harga bergerak terlalu jauh dan berpotensi melakukan retracement.',
+    test:(e,a)=> a.vwap.std>0 && Math.abs((e.price-a.vwap.vwap)/a.vwap.std) > 2 },
+  { code:'MR03', cat:'MR', title:'Retracement', text:'Pergerakan kemungkinan hanya koreksi sementara.',
+    test:(e)=> !!e.range && !e.internalLiquidity },
+  { code:'MR04', cat:'MR', title:'Deep Retracement', text:'Koreksi cukup dalam tetapi struktur utama belum tentu berubah.',
+    test:(e,a)=> !!e.range && a.vwap.std>0 && Math.abs((e.price-a.vwap.vwap)/a.vwap.std) > 1 },
+
+  { code:'UN01', cat:'UN', title:'Unclear Intent', text:'Arah dan tujuan market belum cukup jelas.',
+    test:(e)=> e.status==='OBSERVE' },
+  { code:'UN02', cat:'UN', title:'Conflicting Signals', text:'Beberapa faktor memberikan sinyal yang berlawanan.',
+    test:(e)=> e.bias!=='RANGING' && e.regime==='RANGING' },
+  { code:'UN03', cat:'UN', title:'Low Conviction Move', text:'Pergerakan terjadi tetapi belum memiliki konfirmasi kuat.',
+    test:(e)=> e.regime==='TRENDING' && e.volLabel==='RENDAH' },
+  { code:'UN04', cat:'UN', title:'Potential Trap', text:'Pergerakan berpotensi menjebak trader sebelum arah sebenarnya muncul.',
+    test:(e)=> !!(e.activeSweep && e.activeSweep.state==='PARTIAL' && (e.activeSweep.wickRatio||0)<0.3) },
+  { code:'UN05', cat:'UN', title:'No Confirmation', text:'Belum ada konfirmasi untuk menentukan validitas pergerakan.',
+    test:(e)=> e.status==='WAIT' },
+];
+
+const CONDITION_CATS = {
+  LQ:'Liquidity', BR:'Breakout', ST:'Structure', OF:'Order Flow', IM:'Imbalance / Mitigasi',
+  NT:'News (proksi volatilitas)', SS:'Session', MR:'Mean Reversion', UN:'Tidak Jelas / Fallback',
+};
+
+function detectMarketConditions(app){
+  const eng = app.engine, ts = eng.lastUpdate || Date.now();
+  if(eng.price==null) return [];
+  return MARKET_CONDITION_DEFS.filter(def=>{
+    try { return def.test(eng, app, ts); } catch(err){ return false; }
+  });
+}
+
+function renderConditionsHtml(matches){
+  if(!matches.length){
+    return '<div style="color:var(--mut);font-size:12px;padding:6px 0;">Belum ada kode yang cocok dengan kondisi saat ini.</div>';
+  }
+  const order = ['LQ','BR','ST','OF','IM','NT','SS','MR','UN'];
+  let html = '';
+  order.forEach(cat=>{
+    const items = matches.filter(m=>m.cat===cat);
+    if(!items.length) return;
+    const hasProxy = items.some(m=>m.proxy);
+    html += '<div class="section-hd">'+CONDITION_CATS[cat]
+      + (hasProxy ? ' <span style="color:var(--yellow);text-transform:none;letter-spacing:0;">— perkiraan kasar, arah/tape tidak selalu asli</span>' : '')
+      + '</div>';
+    html += '<div class="cond-group">' + items.map(m=>
+      '<div class="cond-tag'+(m.proxy?' proxy':'')+'" title="'+m.text.replace(/"/g,'&quot;')+'">'
+        + '<span class="code">'+m.code+'</span> <b>'+m.title+'</b>'
+        + '<span class="desc">'+m.text+'</span>'
+      + '</div>'
+    ).join('') + '</div>';
+  });
+  return html;
+}
+
 /* ============================ 5. KONEKSI BRIDGE (WS) ============================ */
 
 function connectBridge(asset, baseUrl, sourceMode, callbacks){
@@ -1450,7 +1669,7 @@ let ACTIVE_SYM = ASSETS[3].sym; // default: XAUUSD, contoh utama blueprint
 function tickSizeFor(app){ return (app.meta && app.meta.tickSize) || Math.pow(10, -(app.asset.dp||2)); }
 
 function initAsset(asset){
-  const app = { asset, engine:newEngineState(asset), meta:null, connState:'sim', connMsg:'Belum tersambung', conn:null, vwap:newVwapState(),
+  const app = { asset, engine:newEngineState(asset), meta:null, connState:'sim', connMsg:'Belum tersambung', conn:null, vwap:newVwapState(), flow:newFlowState(),
     // Jendela chart per-pair: follow=true selalu ikut candle terbaru; begitu digeser (drag),
     // follow=false dan endIdx dikunci absolut -- TIDAK ikut maju walau candle baru terus masuk,
     // sampai user klik dua kali / tombol "kembali ke live". count:500 -- tampilkan 500 candle
@@ -1516,6 +1735,7 @@ function startConnections(){
       onTrade:(m)=>{
         const mid = m.price; const ts = m.ts||Date.now();
         updateVwap(app.vwap, ts, mid, m.size);
+        updateFlow(app.flow, ts, m.side, m.size, m.inferred);
         app.m1Agg.push(ts, mid, m.size);
         app.m1Agg.tagCurrent({ vwap:app.vwap.vwap, vstd:app.vwap.std });
         app.m5Agg.push(ts, mid, m.size);
@@ -2486,6 +2706,22 @@ function drawChart(canvas, m1, eng, dp, view){
   });
 }
 
+// Panel timeline di sidebar dirender ulang tiap 1 detik (setInterval renderAll). Menimpa innerHTML
+// terus-menerus mengembalikan scrollTop ke 0, jadi riwayat yg sedang dibaca "melompat" ke atas
+// tiap detik. Helper ini: (1) tidak menyentuh DOM kalau html-nya sama dgn render sebelumnya,
+// (2) kalau berubah, scroll dijaga -- posisi 0 (mengikuti event terbaru, urutan terbaru-di-atas)
+// tetap di 0; posisi >0 digeser sebesar pertambahan tinggi konten supaya baris yg sedang dibaca
+// tidak ikut terdorong turun oleh event baru di atas, (3) ganti pair (key beda) selalu reset ke atas.
+function updateScrollableHtml(el, html, key){
+  if(el._lfcHtml === html && el._lfcKey === key) return;
+  const sameKey = el._lfcKey === key;
+  const prevTop = el.scrollTop, prevHeight = el.scrollHeight;
+  el.innerHTML = html;
+  el._lfcHtml = html; el._lfcKey = key;
+  if(!sameKey || prevTop <= 0){ el.scrollTop = 0; return; }
+  el.scrollTop = prevTop + Math.max(0, el.scrollHeight - prevHeight);
+}
+
 function renderDetail(){
   const app = APP[ACTIVE_SYM]; const eng = app.engine; const asset = app.asset;
   const rd = readiness(eng);
@@ -2600,10 +2836,15 @@ function renderDetail(){
       + '</div>'
     + '</div>'
 
-    + '<div class="card span2">'
-      + '<h3>Market Timeline</h3>'
-      + '<div class="timeline">'+timelineHtml+'</div>'
+    + '<div class="card span2 conditions-card">'
+      + '<h3>🏷️ Anotasi Kondisi Market <span style="text-transform:none;font-weight:400;color:var(--mut2);font-size:10.5px;">kode ICT, dibaca otomatis dari state mesin — bukan sinyal beli/jual</span></h3>'
+      + renderConditionsHtml(detectMarketConditions(app))
     + '</div>';
+
+  const timelinePanel = document.getElementById('scannerTimelineBody');
+  if(timelinePanel) updateScrollableHtml(timelinePanel, timelineHtml, asset.sym);
+  const timelineTitle = document.getElementById('scannerTimelineTitle');
+  if(timelineTitle) timelineTitle.textContent = 'Market Timeline — ' + asset.sym;
 
   const canvas = document.getElementById('chart');
   if(canvas){
