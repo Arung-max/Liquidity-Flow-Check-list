@@ -1,4 +1,4 @@
-# Liquidity Flow Checklist — Blueprint V1.4
+# Liquidity Flow Checklist — Blueprint V1.5
 
 > V1.0 adalah konsep & mockup ASCII. V1.1 ini mengisi setiap celah yang membuat
 > V1.0 tidak bisa langsung dikodekan: ambang angka, urutan gate yang tidak
@@ -681,3 +681,156 @@ angka absurd karena sebagian besar candle tanpa posisi) — tetap annualisasi ka
 sinyal mesin jarang (puluhan jam per sinyal), jadi jumlah trade biasanya satu digit — sampel kecil diberi
 peringatan bertingkat dan TIDAK boleh dibaca sebagai bukti edge. Satu simulasi = satu pair (portofolio
 multi-pair belum ada). Candle antar-gap (pasar tutup) tidak dimodelkan khusus.
+
+
+## 12. Indikator di Chart Backtest & Panel "📈 Indikator" (V1.5, baru)
+
+Chart backtest sekarang punya sistem indikator. Tombol **📈 Indikator** di header chart membuka panel samping untuk
+menambah, mengatur, mengurutkan, menyembunyikan, dan menghapus indikator; di atas chart ada satu *chip* per
+indikator (nilainya mengikuti candle yang di-hover). Daftar bawaan saat pertama dibuka: **Liquidity Detector**
+(zona likuiditas yang sama dengan chart live) dan **Level Mesin** (garis liquidity eksternal/internal, SL/TP sinyal,
+FVG — juga seperti chart live; ini menggantikan dua garis samar yang dulu selalu tergambar).
+
+**Indikator hanya TAMPILAN.** Menambah/mengubah indikator tidak mengubah sinyal mesin, eksekusi order, maupun hasil
+backtest.
+
+### 12.1 Katalog bawaan
+
+| Indikator (`kunci`) | Posisi | Isi | Parameter utama |
+|---|---|---|---|
+| Liquidity Detector (`liqdet`) | harga, di bawah candle | Zona sell-side/buy-side dari pivot high/low; melebar ke kanan sampai tersapu; angka = kekuatan volume 1–10 (lihat 12.2) | panjang pivot 15, rata-rata volume 10, tinggi kotak = range ÷ 2, volume minimum, tampilkan yg tersapu, tandai penyapu ×, warna |
+| Level Mesin (`engine`) | harga, di bawah candle | Liquidity eksternal atas/bawah, internal liquidity, SL & TP sinyal, FVG — **kondisi mesin pada candle yang sedang dibuka** (snapshot, bukan riwayat) | toggle tiap garis |
+| PDH / PDL (`pdhl`) | harga | High & low hari sebelumnya; garis redup bertitik = sudah tersapu hari ini | jam reset hari (UTC), tampilkan high/low hari berjalan |
+| EMA (`ema`), SMA (`sma`) | harga | Moving average; boleh ditambah berkali-kali; chip dan label menampilkan **% jarak harga ke garis** (12.1a) | periode, sumber harga, warna, tebal, tampilkan % |
+| VWAP Sesi ± SD (`vwap`) | harga, di bawah candle | VWAP tertimbang volume, reset tiap hari UTC, pita ±1/±2 SD; chip dan label menampilkan **% jarak harga ke VWAP** (12.1a) | jam reset, pita 1/2, warna, tampilkan % |
+| Bollinger Bands (`bb`) | harga | SMA ± pengali × simpangan baku populasi, isi area pita | periode 20, pengali 2, sumber |
+| RSI (`rsi`) | panel bawah | RSI Wilder 0–100 dengan garis jenuh-beli/jual | periode 14, level 70/30 |
+| ATR (`atr`) | panel bawah | Average True Range; bawaan SMA 14 = ATR yang dipakai mesin dan SL "× ATR" | periode, SMA/RMA |
+| Volume (`vol`) | panel bawah | Histogram volume (hijau/merah menurut arah candle) + rata-rata bergerak | periode MA |
+
+### 12.1a Persentase jarak harga ke garis (VWAP, EMA, SMA)
+
+Chip tiap VWAP/EMA/SMA menampilkan, di samping nilai garis, **jarak close ke garis dalam persen** =
+`(close − garis) ÷ garis × 100` — rumus yang sama dengan "Jarak dari VWAP" di Market Context chart live. Hijau = harga
+di atas garis, merah = di bawah. Nilainya mengikuti candle yang di-hover (candle terakhir bila tidak ada hover), jadi
+bisa dibaca historis. Di chart, ujung kanan tiap garis diberi label `VWAP 2651.64 (+0.078%)` / `EMA 20 2658.07 (-0.16%)`.
+Semua label garis (level mesin, PDH/PDL, VWAP, EMA, SMA) disusun agar tidak saling menimpa (jarak minimal 11 px, halo
+gelap supaya terbaca di atas candle); label di luar rentang harga yang tampak tidak digambar. Di bawah 0,1% angka memakai
+3 desimal (mis. +0.078%) supaya forex/emas tidak tampak 0,00%.
+
+Matikan lewat ⚙ → **Tampilkan % jarak harga ke garis**: chip kembali polos, label EMA/SMA hilang, label VWAP tanpa persen
+(tampilan lama). Daftar indikator yang tersimpan sebelum fitur ini otomatis ikut menampilkan persentase (parameter baru
+bawaannya aktif). Indikator lain bisa ikut dengan menambah hook `pctRef` (lihat 12.5).
+
+### 12.2 Liquidity Detector (paritas dengan chart live)
+
+Port "Liquidity Location Detector": **pivot high** = bar i−1 adalah tertinggi dari 15 bar trailing dan bar i lebih
+rendah; zona sell-side = `[high pivot, high pivot + range bar pivot ÷ 2]` (pivot low simetris untuk buy-side). Zona
+dikenali pada bar i (satu bar setelah pivot) tetapi digambar mulai dari bar pivot; melebar ke kanan sampai
+**tersapu** (high > batas atas zona / low < batas bawah). Kekuatan 0–10 = rata-rata volume 10 bar di pivot ÷ persentil
+ke-99 dari ≤ 1000 bar × 5 (dipotong 10); pair tanpa tape asli memakai jumlah tick sebagai volume.
+
+Fungsi hitungnya adalah `computeLiquidityZones(candles, opts)` yang **sama** dengan chart live (tanpa `opts`
+perilakunya identik dengan versi sebelumnya — diuji terhadap salinan beku fungsi lama). Di backtest zona dihitung
+dari candle **sampai candle yang sedang dibuka** saja, dengan jendela pencarian = 430 bar sebelum jendela yang tampak
+(persis `drawChart` live), jadi tampilannya sama dengan yang terlihat bila dibuka live pada candle itu; zona hanya
+berstatus "tersapu" bila candle penyapunya sudah terlihat. Diuji: zona yang dihasilkan identik dengan rumus chart live;
+candle setelah candle aktif tidak berpengaruh; geometri zona (batas atas/bawah/awal) tidak berubah lintas langkah replay.
+
+Warisan dari implementasi live yang sengaja tidak diubah (agar "seperti chart live"): (a) angka kekuatan volume bisa
+bergeser pelan seiring candle baru karena persentil dihitung ulang; (b) zona yang pivotnya lebih tua dari jendela
+pencarian (±430 bar + lebar jendela) lepas dari tampilan; (c) pada ±15 bar pertama jendela pencarian, pivot dikenali
+dengan lookback terpotong, jadi zona di tepi kiri yang sangat jauh bisa muncul/hilang saat jendela bergeser (tidak
+memengaruhi zona yang pivotnya ≥ 15 bar di dalam jendela).
+
+### 12.3 Prinsip: kausal, `series` vs `frame`
+
+Setiap indikator **wajib kausal**: nilai di bar *i* hanya boleh bergantung pada `candles[0..i]` — tidak mengintip masa
+depan — supaya saat replay tampilannya jujur. Dua mode:
+- `series`: `calc(candles, p)` menghitung seluruh deret **sekali** (di-cache per simulasi + parameter; tidak dihitung
+  ulang tiap candle). Dipakai EMA, SMA, VWAP, Bollinger, RSI, ATR, Volume, PDH/PDL.
+- `frame`: `frame(candles, p, env)` dihitung ulang tiap gambar untuk candle `env.idx` (dipakai bila hasil bergantung
+  pada jendela yang tampak atau state mesin: Liquidity Detector, Level Mesin).
+
+Tiap indikator dibungkus `try/catch` di `btDrawChart`: indikator yang rusak hanya menandai chip-nya merah (⚠ pesan
+error), chart dan indikator lain tetap jalan; error dicatat sekali di console, bukan tiap frame.
+
+### 12.4 Cara memakai panel
+
+1. Klik **📈 Indikator** di header chart. Pada daftar **Tambah indikator** (ada kolom pencarian) klik **＋ Tambah** —
+   indikator langsung tampil di chart dan pengaturannya terbuka (yang lain menutup).
+2. Ubah parameter (periode, warna, dst.) — chart ikut berubah seketika; **↺ Parameter bawaan** mengembalikan nilainya.
+3. **👁** sembunyikan/tampilkan, **⚙** buka/tutup pengaturan (juga dari chip di atas chart), **▲▼** ubah urutan gambar,
+   **✕** hapus. Indikator yang sama boleh ditambah berkali-kali (mis. dua EMA; warna otomatis dibedakan).
+4. Daftar disimpan di browser (`localStorage`, kunci `lfc.bt.inds.v1`); daftar kosong yang disimpan tetap kosong.
+   **↺ Bawaan** mengembalikan Liquidity Detector + Level Mesin; **Hapus semua** mengosongkan. Maksimum 12 indikator aktif.
+   Indikator panel-bawah menambah tinggi chart 90 px per panel.
+
+### 12.5 Cara menambah JENIS indikator baru (untuk pengembang)
+
+Cukup **menambah satu entri** di objek `BT_INDICATORS` (bagian 6g file HTML). Katalog, form parameter, penyimpanan,
+legend, dan penggambaran di panel dibuat otomatis dari entri itu.
+
+Kontrak entri:
+- `name`, `group` (salah satu `IND_GROUPS`), `desc`, `pane` (`'price'` = overlay di harga, `'sub'` = panel sendiri di
+  bawah), `layer` (`'under'`/`'over'`, hanya untuk `pane:'price'`, bawaan `'over'`), `mode` (`'series'`/`'frame'`).
+- `params`: daftar `{ k, label, type, def, min, max, step, options }`; `type` ∈ `int`, `num`, `bool`, `select`
+  (`options:[{v,l}]`), `color` (`#rrggbb`). Nilai dinormalisasi otomatis (dibulatkan, di-clamp, nilai tak sah → `def`).
+- `title(p)` → teks chip/daftar. `calc(candles, p)` (series) atau `frame(candles, p, env)` (frame) → hasil bebas bentuk.
+- `draw(g, res, p, env)` menggambar di kanvas. Opsional `bounds(res, p, env)` → `{lo,hi}` agar skala harga ikut
+  (`pane:'price'`); **wajib** `scale(res, p, env)` → `{lo,hi,dp}` untuk `pane:'sub'`. Opsional `legend(res, p, i, dp)` →
+  teks nilai di bar `i`. Opsional `pctRef(res, p, i)` → nilai garis di bar `i`; bila ada (dan parameter `showPct` tidak `false`),
+  chip menampilkan jarak close ke garis itu dalam persen (12.1a).
+- `env`: `g`, `plotW`, `plotH`, `slots`, `cw`, `startIdx`, `endIdx` (eksklusif), `idx` (candle terakhir yang terlihat),
+  `dp`, `sim`, `candles`, `count`, `xc(i)` (x tengah candle i), `y(v)` (nilai → piksel y), `lo`/`hi` (skala panel).
+- Pembantu siap pakai: `indSMA`, `indMA`, `indStdev`, `indRSI`, `indTR`, `indSource`, `indMinMax`, `indDayKey`,
+  `indHexRgba`, `indPctOf(harga, garis)` / `indFmtPct(persen)`, dan untuk menggambar `indPath` (garis dari deret), `indBand`
+  (area antar dua deret), `indHLine`, `indTag(env, teks, nilai, warna, pct)` (label di tepi kanan; diantrekan dan disusun
+  otomatis agar tidak bertumpuk).
+- Aturan keras: (1) `calc`/`frame` **kausal** dan tanpa DOM; (2) teks (`name`, `desc`, `label`, judul) tanpa `<` `>`;
+  (3) `k`, `options[].v`, dan kunci entri hanya `A–Z a–z 0–9 _ -` (dipakai di atribut HTML).
+
+Contoh lengkap — **Donchian Channel** (tertinggi/terendah N bar). Tempel apa adanya sebagai entri baru; contoh ini
+sudah diuji (kontrak registry, kausalitas, dan penggambaran):
+
+<!-- contoh-indikator:start -->
+```js
+donchian: {
+  name:'Donchian Channel', group:'Tren & Harga', pane:'price', layer:'over', mode:'series',
+  desc:'Garis tertinggi dan terendah N bar terakhir.',
+  params: [
+    { k:'period', label:'Periode', type:'int', def:20, min:2, max:300 },
+    { k:'color', label:'Warna', type:'color', def:'#9b8cff' },
+  ],
+  title: p => 'Donchian ('+p.period+')',
+  calc(candles, p){ // WAJIB kausal: nilai bar i hanya dari candles[0..i]
+    const up = [], lo = [];
+    for(let i=0;i<candles.length;i++){
+      if(i < p.period-1){ up.push(null); lo.push(null); continue; }
+      let h = -Infinity, l = Infinity;
+      for(let k=i-p.period+1;k<=i;k++){ if(candles[k].h>h) h = candles[k].h; if(candles[k].l<l) l = candles[k].l; }
+      up.push(h); lo.push(l);
+    }
+    return { up, lo };
+  },
+  bounds(res, p, env){ return indMinMax([res.up, res.lo], env.startIdx, env.endIdx); },
+  draw(g, res, p, env){ indPath(env, res.up, p.color); indPath(env, res.lo, p.color); },
+  legend(res, p, i, dp){ return res.up[i]==null ? '' : res.up[i].toFixed(dp)+' / '+res.lo[i].toFixed(dp); },
+},
+```
+<!-- contoh-indikator:end -->
+
+Cara menguji kausalitas indikator baru: untuk beberapa indeks `k`, hasil `calc(candles.slice(0, k+1), p)` di posisi `k`
+harus **sama persis** dengan hasil `calc(candles, p)` di posisi `k`; untuk mode `frame`, buang candle setelah `env.idx`
+dan hasilnya tidak boleh berubah.
+
+### 12.6 Batasan jujur
+
+- Indikator tidak memengaruhi sinyal/hasil backtest. "Filter sinyal berdasarkan zona likuiditas" (mis. hanya ambil
+  sinyal bila ada zona tersapu di dekatnya) **belum ada** — itu perubahan strategi, bukan tampilan.
+- Level Mesin adalah snapshot state mesin pada candle aktif, bukan riwayat level di candle-candle sebelumnya.
+- Data M1 3000 candle ≈ 50 jam: PDH/PDL baru muncul di hari ke-3 data (hari pertama yang terpotong tidak dipakai);
+  M5 ≈ 10 hari tidak bermasalah. Hari dihitung UTC (geser dengan "jam reset").
+- VWAP di sini dihitung dari harga tipikal (H+L+C)/3 per candle, bukan per tick seperti VWAP live — mendekati, bukan
+  identik. Volume pair non-kripto = jumlah tick.
+- Panel indikator hanya ada di chart backtest; chart live tetap dengan set gambar bawaannya (zona, level mesin, VWAP).

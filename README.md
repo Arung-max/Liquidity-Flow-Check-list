@@ -49,6 +49,16 @@ TWR, Sharpe, dst.), kurva ekuitas, ekspor CSV, dan **Backtest Otomatis** yang me
 CONFIRMED dari mesin. Tanpa data pasar, pilih "Data demo sintetis" untuk mencoba fiturnya.
 Detail model eksekusi dan batasannya ada di blueprint §11.
 
+### Indikator di chart backtest
+
+Tombol **📈 Indikator** di header chart backtest membuka panel untuk menambah/mengatur indikator:
+**Liquidity Detector** (zona likuiditas seperti chart live — bawaan), **Level Mesin** (liquidity eksternal/internal, SL/TP,
+FVG — bawaan), PDH/PDL, EMA, SMA, VWAP ± SD, Bollinger Bands, RSI, ATR, dan Volume. VWAP/EMA/SMA menampilkan
+persentase jarak harga ke garisnya (di chip dan di label garis). Indikator hanya tampilan (tidak
+mengubah sinyal mesin atau hasil backtest) dan hanya memakai data sampai candle yang sedang dibuka, jadi saat replay
+tampilannya sama seperti live. Cara menambah indikator lewat panel maupun lewat kode (satu entri di `BT_INDICATORS`, lengkap
+dengan contoh): blueprint §12.
+
 ## Live preview dengan auto-reload (opsional, buat yang lagi ikut kembangkan)
 
 Kalau lagi memantau pembaruan (mis. lewat Claude Code) dan ingin browser Anda

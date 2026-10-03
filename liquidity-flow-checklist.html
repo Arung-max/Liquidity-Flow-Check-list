@@ -305,6 +305,47 @@
   #btTabBody{overflow-x:auto;padding-top:10px;}
   #btTabBody .an-table td{vertical-align:middle;}
   @media (max-width:1100px){ .bt-main{grid-template-columns:1fr;} .bt-actions{margin-left:0;} }
+  /* ---------- Indikator (Backtest) ---------- */
+  .bt-indbtn.on{border-color:var(--blue);color:var(--blue);}
+  .bt-chartwrap{display:flex;gap:10px;align-items:flex-start;}
+  .bt-chartcol{flex:1;min-width:0;}
+  .bt-indlegend{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;min-height:22px;align-items:center;}
+  .ind-chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel3);border:1px solid var(--line);border-radius:6px;
+    padding:1px 3px 1px 8px;font:11px var(--mono);color:var(--mut);max-width:100%;}
+  .ind-chip.off{opacity:.45;}
+  .ind-chip.err{border-color:var(--red);color:var(--red);}
+  .ind-chip i,.ind-row i{width:8px;height:8px;border-radius:50%;display:inline-block;flex:0 0 8px;}
+  .ind-chip .iv{color:var(--text);}
+  .ind-chip .ip{font-weight:700;}
+  .ind-chip button,.ind-row button{background:none;border:none;color:var(--mut);cursor:pointer;font-size:11px;padding:1px 4px;border-radius:4px;line-height:1.3;}
+  .ind-chip button:hover,.ind-row button:hover:not(:disabled){background:var(--panel);color:var(--text);}
+  .ind-row button:disabled{opacity:.25;cursor:default;}
+  .ind-row button.on{color:var(--blue);}
+  .bt-indpanel{flex:0 0 340px;max-height:620px;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:11.5px;}
+  .ind-hd{display:flex;align-items:center;justify-content:space-between;}
+  .ind-h{font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--mut2);font-weight:700;margin:10px 0 6px;display:flex;align-items:center;gap:6px;}
+  .ind-h .grow,.ind-row .grow{flex:1;}
+  .ind-item{border:1px solid var(--line);border-radius:8px;background:var(--panel2);margin-bottom:6px;padding:5px 6px;}
+  .ind-item.off .ind-title{opacity:.5;text-decoration:line-through;}
+  .ind-row{display:flex;align-items:center;gap:5px;}
+  .ind-title{font-size:11.5px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ind-tag{font-size:9px;color:var(--mut2);border:1px solid var(--line);border-radius:10px;padding:0 6px;white-space:nowrap;}
+  .ind-params{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px;margin-top:7px;padding-top:7px;border-top:1px dashed var(--line-soft);}
+  .ind-params label{display:flex;flex-direction:column;gap:3px;font-size:10px;color:var(--mut);}
+  .ind-params label.ind-chk{flex-direction:row;align-items:center;gap:6px;grid-column:1 / -1;}
+  .ind-params input[type="number"],.ind-params select{background:var(--panel3);border:1px solid var(--line);color:var(--text);
+    padding:4px 6px;border-radius:5px;font:11.5px var(--mono);min-width:0;width:100%;}
+  .ind-params input[type="color"]{width:100%;height:26px;background:var(--panel3);border:1px solid var(--line);border-radius:5px;padding:1px 2px;cursor:pointer;}
+  .ind-params .btn{grid-column:1 / -1;justify-self:start;}
+  .ind-grp{font-size:10px;color:var(--mut);font-weight:700;margin:10px 0 2px;}
+  .ind-cat{display:flex;gap:8px;align-items:flex-start;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line-soft);}
+  .ind-cat-txt{min-width:0;} .ind-cat-txt .bt-muted{margin-top:2px;line-height:1.4;}
+  #btIndSearch{width:100%;background:var(--panel3);border:1px solid var(--line);color:var(--text);padding:6px 8px;border-radius:6px;font:12px var(--mono);}
+  .ind-help{margin-top:12px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);padding:6px 10px;color:var(--mut);}
+  .ind-help summary{cursor:pointer;color:var(--text);font-weight:600;font-size:11.5px;}
+  .ind-help ol{margin:8px 0 4px;padding-left:18px;line-height:1.55;} .ind-help p{margin:6px 0;line-height:1.5;}
+  .ind-help code{background:var(--panel3);padding:0 4px;border-radius:4px;font-family:var(--mono);font-size:10.5px;}
+  @media (max-width:1100px){ .bt-chartwrap{flex-direction:column;} .bt-indpanel{flex:none;width:100%;} }
   @media (max-width:1000px){ .detail{grid-template-columns:1fr;} .scanner{width:280px;flex:0 0 280px;} }
   @media (max-width:760px){
     .layout{flex-direction:column;}
@@ -453,9 +494,37 @@
               <b id="btTitle">—</b><b class="price-val" id="btPrice"></b>
               <span class="bt-chip" id="btClock"></span><span class="bt-chip" id="btProg"></span>
               <span class="badge OBSERVE" id="btEngine">Mesin</span>
+              <button class="btn bt-mini bt-indbtn" id="btIndBtn" title="Tambah / atur indikator di chart">📈 Indikator <span id="btIndCount"></span></button>
               <span class="bt-hover" id="btHover"></span>
             </div>
-            <canvas id="btChart"></canvas>
+            <div class="bt-chartwrap">
+              <div class="bt-chartcol">
+                <div class="bt-indlegend" id="btIndLegend"></div>
+                <canvas id="btChart"></canvas>
+              </div>
+              <aside class="bt-indpanel" id="btIndPanel" style="display:none">
+                <div class="ind-hd"><b>📈 Indikator</b><button class="btn bt-mini" id="btIndClose" title="Tutup panel">✕</button></div>
+                <div class="ind-h"><span id="btIndActiveH">Aktif di chart</span><span class="grow"></span>
+                  <button class="btn bt-mini" id="btIndReset" title="Kembali ke indikator bawaan (Liquidity Detector + Level Mesin)">↺ Bawaan</button>
+                  <button class="btn bt-mini" id="btIndClear" title="Hapus semua indikator dari chart">Hapus semua</button></div>
+                <div id="btIndActive"></div>
+                <div class="bt-ordermsg" id="btIndMsg"></div>
+                <div class="ind-h">Tambah indikator</div>
+                <input type="search" id="btIndSearch" placeholder="Cari… (mis. EMA, RSI, likuiditas)" autocomplete="off">
+                <div id="btIndCatalog"></div>
+                <details class="ind-help" id="btIndHelp">
+                  <summary>❓ Cara menambah &amp; memakai indikator</summary>
+                  <ol>
+                    <li>Di daftar <b>Tambah indikator</b>, klik <b>＋ Tambah</b> pada indikator yang diinginkan — langsung tampil di chart.</li>
+                    <li>Klik <b>⚙</b> pada indikator aktif (di panel ini atau di chip atas chart) untuk mengubah parameter: periode, warna, dst. Chart ikut berubah seketika.</li>
+                    <li><b>👁</b> sembunyikan/tampilkan, <b>▲▼</b> ubah urutan gambar, <b>✕</b> hapus. Indikator yang sama boleh ditambah berkali-kali (mis. dua EMA dengan periode berbeda).</li>
+                    <li>Pengaturan tersimpan di browser ini (maksimal 12 indikator aktif). <b>↺ Bawaan</b> mengembalikan Liquidity Detector + Level Mesin.</li>
+                  </ol>
+                  <p>Semua indikator hanya memakai data <b>sampai candle yang sedang dibuka</b> — tidak mengintip masa depan — jadi saat replay tampilannya sama seperti kalau dilihat live pada saat itu. Indikator hanya <b>tampilan</b>: tidak mengubah sinyal mesin maupun hasil backtest.</p>
+                  <p>Menambah <b>jenis</b> indikator baru (lewat kode): tambahkan satu entri di <code>BT_INDICATORS</code> (bagian 6g di file HTML); form pengaturan di panel ini dibuat otomatis dari daftar <code>params</code>-nya. Panduan &amp; contoh ada di blueprint §12.</p>
+                </details>
+              </aside>
+            </div>
             <div class="bt-replay">
               <button class="btn primary" id="btPlay">▶ Play</button>
               <button class="btn" id="btStep1" title="Maju 1 candle">⏭ +1</button>
@@ -468,7 +537,7 @@
               <div class="bt-progress"><i id="btProgBar"></i></div>
               <button class="btn" id="btToEnd">⏩ Sampai Akhir</button>
             </div>
-            <div class="chart-hint">Scroll = zoom · Penanda: ▲/▼ entri, ■ keluar (hijau untung/merah rugi), ◆ sinyal mesin (ungu = dieksekusi)</div>
+            <div class="chart-hint">Scroll = zoom · Penanda: ▲/▼ entri, ■ keluar (hijau untung/merah rugi), ◆ sinyal mesin (ungu = dieksekusi) · Zona merah muda = sell-side, biru-hijau = buy-side (angka = kekuatan volume) · 📈 Indikator = tambah/atur indikator</div>
           </div>
           <div class="card">
             <div class="tabbar" id="btTabs" style="padding:0;background:transparent">
@@ -3248,7 +3317,8 @@ function btBuildData(o){
 // (panel order, modal, setup) TIDAK pernah dibangun ulang saat simulasi berjalan -- hanya teks akun,
 // tabel, dan kanvas yg diperbarui (tabel dilewati selama ada input di dalamnya yg sedang difokus).
 const BT = { sim:null, tab:'port', timer:null, acc:0, playing:false, busy:false, cancel:false,
-  view:{ count:160 }, hoverIdx:null, inited:false, finishShown:false, chartRaf:false };
+  view:{ count:160 }, hoverIdx:null, inited:false, finishShown:false, chartRaf:false,
+  inds:[], indCache:new Map(), indRes:new Map(), indErr:{}, indErrSeen:new Set(), indOpen:new Set(), indPanel:false, indSearch:'' };
 const btEl = id => document.getElementById(id);
 
 function btMoney(x, sign){
@@ -3346,6 +3416,7 @@ function btLoad(opts){
   BT.sim = btCreateSim({ asset:data.asset, tfMs:data.tfMs, ctxMs:data.ctxMs, candles:data.candles, ctx:data.ctx,
     start:data.start, tickSize:data.tickSize, cfg:su.cfg, settings:SETTINGS, source:data.source });
   BT.finishShown = false; BT.hoverIdx = null;
+  BT.indCache.clear(); BT.indRes = new Map(); BT.indErr = {};
   btEl('btOprice').value = '';
   if(data.source==='demo') btShowMsg('Memakai DATA DEMO sintetis (bukan pasar sungguhan) — hasil hanya utk mencoba fitur, TIDAK mencerminkan kinerja strategi pada pasar.', 'warn');
   else if(su.count>data.n) btShowMsg('Data tersedia hanya '+data.n+' candle uji (diminta '+su.count+').', 'info');
@@ -3651,9 +3722,17 @@ function btReportHtml(sim){
 }
 
 /* ---- grafik harga ---- */
+// Tinggi kanvas = panel harga (BT_CHART_H) + satu baris panel bawah per indikator 'sub' yg tampil. Indikator
+// digambar lewat registry BT_INDICATORS (6g); lapisan 'under' di bawah candle, 'over' di atasnya. Tiap
+// indikator dibungkus try/catch: satu indikator rusak hanya menandai chip-nya merah, chart tetap jalan.
+const BT_CHART_H = 380, BT_SUB_H = 84, BT_SUB_GAP = 6, BT_TIME_H = 16, BT_GUTTER = 66;
 function btDrawChart(){
   const cv = btEl('btChart'), sim = BT.sim;
   if(!cv || !sim) return;
+  const act = btIndActive();
+  const subs = act.filter(a=>a.def.pane==='sub');
+  const wantH = BT_CHART_H + subs.length*(BT_SUB_H+BT_SUB_GAP);
+  if(cv.style.height !== wantH+'px') cv.style.height = wantH+'px';
   const W = cv.clientWidth, H = cv.clientHeight;
   if(!W || !H) return;
   const dpr = window.devicePixelRatio || 1;
@@ -3664,33 +3743,57 @@ function btDrawChart(){
   const startIdx = Math.max(0, endIdx-count);
   const data = sim.candles.slice(startIdx, endIdx);
   if(data.length<2){ ctx.fillStyle='#4E5867'; ctx.font='12px sans-serif'; ctx.fillText('Data belum cukup.',10,20); return; }
-  const gutter = 66, bottom = 16, plotW = W-gutter, plotH = H-bottom;
+  const plotW = W-BT_GUTTER, plotH = BT_CHART_H-BT_TIME_H;
   const slots = data.length + 3, cw = plotW/slots;
   const xi = idx => (idx-startIdx+0.5)*cw;
-  let hi = Math.max(...data.map(c=>c.h)), lo = Math.min(...data.map(c=>c.l));
-  const rng = hi-lo || hi*0.001;
-  const levels = [];
-  sim.positions.forEach(p=>{ levels.push(p.entry); if(p.sl!=null) levels.push(p.sl); if(p.tp!=null) levels.push(p.tp); });
-  sim.orders.forEach(o=>{ levels.push(o.price); });
-  levels.forEach(v=>{ if(v>lo-rng && v<hi+rng){ if(v>hi) hi=v; if(v<lo) lo=v; } });
+  // hasil tiap indikator (series: dari cache; frame: dihitung utk candle yg sedang dibuka)
+  const env = { g:ctx, plotW, plotH, slots, cw, startIdx, endIdx, idx:sim.idx, dp, sim, candles:sim.candles, count, xc:xi, tags:[] };
+  BT.indRes = new Map(); BT.indErr = {};
+  const fail = (a, e)=>{
+    const m = (e && e.message) || String(e), key = a.inst.uid+'|'+m;
+    if(!BT.indErrSeen.has(key)){ BT.indErrSeen.add(key); console.error('[indikator '+a.inst.type+']', e); } // log sekali saja, bukan tiap frame
+    BT.indErr[a.inst.uid] = m;
+  };
+  act.forEach(a=>{
+    try{ a.res = btIndResult(a.inst, a.def, sim, env); BT.indRes.set(a.inst.uid, a.res); }
+    catch(e){ a.res = null; fail(a, e); }
+  });
+  // skala harga: candle + level posisi/order + indikator overlay. Level/indikator yg lebih dari satu
+  // "tinggi candle" di luar rentang tidak ikut skala (supaya level jauh tidak menggepengkan candle).
+  const hi0 = Math.max(...data.map(c=>c.h)), lo0 = Math.min(...data.map(c=>c.l));
+  const rng = hi0-lo0 || hi0*0.001;
+  let hi = hi0, lo = lo0;
+  const extend = v => { if(v!=null && isFinite(v) && v>lo0-rng && v<hi0+rng){ if(v>hi) hi = v; if(v<lo) lo = v; } };
+  sim.positions.forEach(p=>{ extend(p.entry); extend(p.sl); extend(p.tp); });
+  sim.orders.forEach(o=>extend(o.price));
+  act.forEach(a=>{
+    if(a.def.pane!=='price' || !a.def.bounds || !a.res) return;
+    try{ const b = a.def.bounds(a.res, a.inst.params, env); if(b){ extend(b.hi); extend(b.lo); } }catch(e){ fail(a, e); }
+  });
   const pad = (hi-lo)*0.06 || 1, top = hi+pad, bot = lo-pad;
   const y = px => plotH - (px-bot)/(top-bot)*plotH;
+  env.y = y; env.y0 = 0; env.y1 = plotH; env.lo = bot; env.hi = top;
   // grid + label harga
   ctx.strokeStyle='#171C24'; ctx.lineWidth=1; ctx.font='10px monospace'; ctx.fillStyle='#4E5867';
   for(let i=0;i<=5;i++){ const py = plotH*i/5; ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(plotW,py); ctx.stroke(); ctx.fillText(btNum(top-(top-bot)*i/5, dp), plotW+4, py+3); }
-  // label waktu
+  // label waktu (di dasar kanvas, di bawah semua panel)
   const every = Math.max(1, Math.round(data.length/6));
   for(let i=0;i<data.length;i+=every){ ctx.fillText(new Date(data[i].t).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',hour12:false}), xi(startIdx+i)-12, H-3); }
   // batas awal backtest
   if(sim.start>startIdx && sim.start<endIdx){
-    const x = (sim.start-startIdx)*cw; ctx.setLineDash([2,4]); ctx.strokeStyle='#4EA1F3'; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,plotH); ctx.stroke(); ctx.setLineDash([]);
+    const x = (sim.start-startIdx)*cw; ctx.setLineDash([2,4]); ctx.strokeStyle='#4EA1F3'; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H-BT_TIME_H); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle='#4EA1F3'; ctx.fillText('mulai backtest →', x+4, 12);
   }
-  // level likuiditas mesin (samar)
-  const eng = sim.engine;
-  const hl = (px, color, dash)=>{ if(px==null||px<bot||px>top) return; ctx.strokeStyle=color; ctx.setLineDash(dash||[]); ctx.beginPath(); ctx.moveTo(0,y(px)); ctx.lineTo(plotW,y(px)); ctx.stroke(); ctx.setLineDash([]); };
-  hl(eng.externalLiquidity.above,'rgba(136,147,163,.35)',[3,4]); hl(eng.externalLiquidity.below,'rgba(136,147,163,.35)',[3,4]);
-  if(eng.internalLiquidity) hl(eng.internalLiquidity.price,'rgba(232,185,74,.4)',[3,4]);
+  // indikator overlay, dipotong ke panel harga
+  const overlays = layer => {
+    ctx.save(); ctx.beginPath(); ctx.rect(0,0,plotW,plotH); ctx.clip();
+    act.forEach(a=>{
+      if(a.def.pane!=='price' || (a.def.layer||'over')!==layer || !a.res) return;
+      try{ a.def.draw(ctx, a.res, a.inst.params, env); }catch(e){ fail(a, e); }
+    });
+    ctx.restore();
+  };
+  overlays('under');
   // candle
   data.forEach((c,i)=>{
     const cx = (i+0.5)*cw, up = c.c>=c.o;
@@ -3699,6 +3802,11 @@ function btDrawChart(){
     const bw = Math.max(cw*0.65,1), yo=y(c.o), yc=y(c.c);
     ctx.fillRect(cx-bw/2, Math.min(yo,yc), bw, Math.max(Math.abs(yc-yo),1));
   });
+  overlays('over');
+  // label garis (EXT/INT/SL/TP/FVG/PDH/PDL/VWAP/EMA/SMA...) dari semua indikator digambar di sini, di atas candle
+  ctx.save(); ctx.beginPath(); ctx.rect(0,0,plotW,plotH); ctx.clip();
+  try{ indFlushTags(env); }catch(e){ console.error('[label indikator]', e); }
+  ctx.restore();
   // sinyal mesin
   sim.signals.forEach(s=>{
     if(s.i<startIdx || s.i>=endIdx) return;
@@ -3719,6 +3827,7 @@ function btDrawChart(){
     ctx.fillStyle = col; ctx.fillRect(x1-3, y(t.exit)-3, 6, 6);
   });
   // posisi terbuka & order pending
+  const hl = (px, color, dash)=>{ if(px==null||px<bot||px>top) return; ctx.strokeStyle=color; ctx.setLineDash(dash||[]); ctx.beginPath(); ctx.moveTo(0,y(px)); ctx.lineTo(plotW,y(px)); ctx.stroke(); ctx.setLineDash([]); };
   const lbl = (px, text, color)=>{ ctx.fillStyle=color; ctx.font='10px monospace'; ctx.fillText(text, 4, y(px)-3); };
   sim.positions.forEach(p=>{
     hl(p.entry, '#4EA1F3'); lbl(p.entry, (p.side==='buy'?'BUY ':'SELL ')+p.size+' @ '+btNum(p.entry,dp), '#4EA1F3');
@@ -3729,12 +3838,28 @@ function btDrawChart(){
   // harga terakhir
   const last = data[data.length-1];
   hl(last.c, 'rgba(231,236,242,.35)', [1,3]);
-  ctx.fillStyle = last.c>=last.o ? '#3DDC84' : '#E5484D'; ctx.fillRect(plotW+1, y(last.c)-8, gutter-2, 16);
+  ctx.fillStyle = last.c>=last.o ? '#3DDC84' : '#E5484D'; ctx.fillRect(plotW+1, y(last.c)-8, BT_GUTTER-2, 16);
   ctx.fillStyle = '#06100A'; ctx.font = 'bold 10px monospace'; ctx.fillText(btNum(last.c,dp), plotW+4, y(last.c)+3);
+  // indikator panel bawah (RSI, ATR, Volume, ...), masing-masing skala sendiri
+  subs.forEach((a,k)=>{
+    const y0 = plotH + BT_SUB_GAP + k*(BT_SUB_H+BT_SUB_GAP), h = BT_SUB_H;
+    ctx.fillStyle = '#070A0E'; ctx.fillRect(0, y0, plotW, h);
+    ctx.strokeStyle = '#171C24'; ctx.lineWidth = 1; ctx.strokeRect(0.5, y0+0.5, plotW-1, h-1);
+    let sc = { lo:0, hi:1, dp:dp };
+    if(a.res){ try{ sc = a.def.scale(a.res, a.inst.params, env) || sc; }catch(e){ fail(a, e); } }
+    const span = (sc.hi-sc.lo) || 1;
+    const senv = Object.assign({}, env, { y: v => y0 + h - (v-sc.lo)/span*h, y0, y1:y0+h, lo:sc.lo, hi:sc.hi, tags:null });
+    ctx.save(); ctx.beginPath(); ctx.rect(0, y0, plotW, h); ctx.clip();
+    if(a.res){ try{ a.def.draw(ctx, a.res, a.inst.params, senv); }catch(e){ fail(a, e); } }
+    ctx.restore();
+    ctx.font = '10px monospace'; ctx.fillStyle = '#8893A3'; ctx.fillText(a.def.title(a.inst.params), 6, y0+11);
+    ctx.fillStyle = '#4E5867'; ctx.fillText(btNum(sc.hi, sc.dp), plotW+4, y0+9); ctx.fillText(btNum(sc.lo, sc.dp), plotW+4, y0+h-2);
+  });
   // crosshair
   if(BT.hoverIdx!=null && BT.hoverIdx>=startIdx && BT.hoverIdx<endIdx){
-    const hx = xi(BT.hoverIdx); ctx.strokeStyle='rgba(231,236,242,.25)'; ctx.beginPath(); ctx.moveTo(hx,0); ctx.lineTo(hx,plotH); ctx.stroke();
+    const hx = xi(BT.hoverIdx); ctx.strokeStyle='rgba(231,236,242,.25)'; ctx.beginPath(); ctx.moveTo(hx,0); ctx.lineTo(hx,H-BT_TIME_H); ctx.stroke();
   }
+  btIndLegendValues(BT.hoverIdx);
 }
 
 /* ---- grafik ekuitas ---- */
@@ -3860,6 +3985,793 @@ function btInitUi(){
   });
   cv.addEventListener('mouseleave', ()=>{ BT.hoverIdx = null; btEl('btHover').textContent=''; btDrawChartSoon(); });
   window.addEventListener('resize', ()=>{ if(btEl('btOverlay').style.display==='flex'){ btDrawChartSoon(); if(BT.tab==='eq') btDrawEquity(); } });
+  btIndInit();
+}
+
+/* ============================== 6g. BACKTEST: INDIKATOR (registry & perhitungan) ============================== */
+// Registry indikator utk chart backtest. Sumber TUNGGAL: panel "📈 Indikator" (6h) membentuk katalog &
+// form pengaturannya otomatis dari BT_INDICATORS, jadi MENAMBAH JENIS INDIKATOR = MENAMBAH SATU ENTRI di
+// bawah (panduan + contoh: blueprint §12). Bagian ini murni (tanpa DOM): fungsi draw hanya menerima context
+// kanvas & objek env dari btDrawChart, sehingga calc/frame bisa diuji di Node.
+//
+// ATURAN WAJIB tiap entri (diuji di test-indicators.mjs):
+//  1. KAUSAL: nilai di bar i hanya boleh bergantung pada candles[0..i] -- tidak mengintip masa depan,
+//     jadi saat replay tampilannya sama dgn yg terlihat bila dibuka live pada candle itu.
+//  2. mode 'series': calc(candles, p) -> seluruh deret, dihitung SEKALI (di-cache per simulasi+parameter).
+//     mode 'frame' : frame(candles, p, env) -> dihitung ulang tiap gambar utk bar env.idx (dipakai bila hasil
+//     bergantung pada jendela yg tampak atau state mesin, mis. zona likuiditas & level mesin).
+//  3. draw(g, res, p, env): g = context kanvas; env.xc(i) = x tengah candle i, env.y(v) = harga/nilai -> y.
+//     pane 'price' = overlay di panel harga (bounds() opsional utk skala otomatis); pane 'sub' = panel
+//     sendiri di bawah chart (scale() wajib -> {lo,hi,dp}).
+const IND_MAX_ACTIVE = 12;
+const IND_STORE_KEY = 'lfc.bt.inds.v1';
+const IND_ZONE_LOOKBACK = 430; // sama dgn chart live (drawChart): zona dicari 430 bar sebelum jendela yg tampak
+const IND_GROUPS = ['Likuiditas', 'Tren & Harga', 'Momentum & Volatilitas', 'Volume'];
+const IND_SOURCES = [
+  { v:'close', l:'Close' }, { v:'open', l:'Open' }, { v:'high', l:'High' }, { v:'low', l:'Low' },
+  { v:'hl2', l:'(H+L)/2' }, { v:'hlc3', l:'(H+L+C)/3' }, { v:'ohlc4', l:'(O+H+L+C)/4' },
+];
+
+/* ---- perhitungan dasar (null-aware: nilai null memutus deret, hasil null sampai jendela terisi) ---- */
+function indSource(candles, src){
+  const out = new Array(candles.length);
+  for(let i=0;i<candles.length;i++){
+    const c = candles[i];
+    out[i] = src==='open' ? c.o : src==='high' ? c.h : src==='low' ? c.l : src==='hl2' ? (c.h+c.l)/2
+      : src==='hlc3' ? (c.h+c.l+c.c)/3 : src==='ohlc4' ? (c.o+c.h+c.l+c.c)/4 : c.c;
+  }
+  return out;
+}
+function indSMA(arr, n){
+  const out = new Array(arr.length).fill(null);
+  let sum = 0, cnt = 0; // cnt = panjang run nilai valid berturut-turut (maks n)
+  for(let i=0;i<arr.length;i++){
+    const v = arr[i];
+    if(v==null){ sum = 0; cnt = 0; continue; }
+    sum += v; cnt++;
+    if(cnt>n){ sum -= arr[i-n]; cnt = n; }
+    if(cnt===n) out[i] = sum/n;
+  }
+  return out;
+}
+// EMA (alpha=2/(n+1)) & RMA/Wilder (alpha=1/n): seed = SMA n nilai pertama, lalu rekursif.
+function indMA(arr, n, alpha){
+  const out = new Array(arr.length).fill(null);
+  let prev = null, run = 0, seed = 0;
+  for(let i=0;i<arr.length;i++){
+    const v = arr[i];
+    if(v==null){ prev = null; run = 0; seed = 0; continue; }
+    if(prev==null){ run++; seed += v; if(run===n){ prev = seed/n; out[i] = prev; } }
+    else { prev = alpha*v + (1-alpha)*prev; out[i] = prev; }
+  }
+  return out;
+}
+// Simpangan baku POPULASI (sama dgn ta.stdev TradingView), dua-lintasan per jendela.
+function indStdev(arr, n){
+  const out = new Array(arr.length).fill(null);
+  let cnt = 0;
+  for(let i=0;i<arr.length;i++){
+    if(arr[i]==null){ cnt = 0; continue; }
+    cnt++;
+    if(cnt<n) continue;
+    let m = 0; for(let k=i-n+1;k<=i;k++) m += arr[k];
+    m /= n;
+    let s = 0; for(let k=i-n+1;k<=i;k++){ const d = arr[k]-m; s += d*d; }
+    out[i] = Math.sqrt(s/n);
+  }
+  return out;
+}
+function indRsiVal(g, l){ return l===0 ? (g===0 ? 50 : 100) : 100 - 100/(1+g/l); }
+// RSI Wilder: rata-rata awal = SMA n perubahan pertama, lalu smoothing RMA.
+function indRSI(closes, n){
+  const out = new Array(closes.length).fill(null);
+  let ag = null, al = null, gs = 0, ls = 0, cnt = 0;
+  for(let i=1;i<closes.length;i++){
+    const d = closes[i]-closes[i-1], g = d>0 ? d : 0, l = d<0 ? -d : 0;
+    if(ag==null){
+      gs += g; ls += l; cnt++;
+      if(cnt===n){ ag = gs/n; al = ls/n; out[i] = indRsiVal(ag, al); }
+    } else { ag = (ag*(n-1)+g)/n; al = (al*(n-1)+l)/n; out[i] = indRsiVal(ag, al); }
+  }
+  return out;
+}
+function indTR(candles){ return candles.map((c,i)=>trueRange(c, i>0 ? candles[i-1].c : null)); }
+// Batas hari (UTC, dengan geseran jam anchor). Sama dgn VWAP live: Math.floor(ts/86400000).
+function indDayKey(t, anchorHour){ return Math.floor((t - anchorHour*3600000)/86400000); }
+
+/* ---- utilitas gambar ---- */
+function indHexRgba(hex, a){
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex||'');
+  if(!m) return 'rgba(136,147,163,'+a+')';
+  return 'rgba('+parseInt(m[1],16)+','+parseInt(m[2],16)+','+parseInt(m[3],16)+','+a+')';
+}
+// Warna zona = warna dasar + opasitas menurut kekuatan volume 0..10 (rumus sama dgn zoneColor chart live).
+function indZoneFill(hex, vol){ return indHexRgba(hex, (0.10 + clamp(vol/10,0,1)*0.55).toFixed(3)); }
+function indMinMax(arrs, a, b){
+  let lo = Infinity, hi = -Infinity;
+  for(const arr of arrs) for(let i=a;i<b;i++){ const v = arr[i]; if(v==null || !isFinite(v)) continue; if(v<lo) lo = v; if(v>hi) hi = v; }
+  return hi>=lo ? { lo, hi } : null;
+}
+function indPath(env, arr, color, width, dash, brk){
+  const g = env.g;
+  g.strokeStyle = color; g.lineWidth = width || 1.2; g.setLineDash(dash || []);
+  g.beginPath(); let pen = false;
+  for(let i=env.startIdx;i<env.endIdx;i++){
+    const v = arr[i];
+    if(v==null || !isFinite(v)){ pen = false; continue; }
+    if(brk && brk[i]) pen = false;
+    const x = env.xc(i), y = env.y(v);
+    if(!pen){ g.moveTo(x, y); pen = true; } else g.lineTo(x, y);
+  }
+  g.stroke(); g.setLineDash([]); g.lineWidth = 1;
+}
+function indBand(env, up, lo, fill){
+  const g = env.g; g.fillStyle = fill;
+  let run = [];
+  const flush = ()=>{
+    if(run.length>1){
+      g.beginPath();
+      run.forEach((i,k)=>{ const x = env.xc(i), y = env.y(up[i]); if(k) g.lineTo(x, y); else g.moveTo(x, y); });
+      for(let k=run.length-1;k>=0;k--) g.lineTo(env.xc(run[k]), env.y(lo[run[k]]));
+      g.closePath(); g.fill();
+    }
+    run = [];
+  };
+  for(let i=env.startIdx;i<env.endIdx;i++){ if(up[i]==null || lo[i]==null) flush(); else run.push(i); }
+  flush();
+}
+function indHLine(env, v, color, dash, width){
+  if(v==null) return;
+  const g = env.g, y = env.y(v);
+  g.strokeStyle = color; g.lineWidth = width || 1; g.setLineDash(dash || []);
+  g.beginPath(); g.moveTo(0, y); g.lineTo(env.plotW, y); g.stroke(); g.setLineDash([]); g.lineWidth = 1;
+}
+// Persentase jarak harga ke sebuah garis: (harga - garis) / garis * 100 -- rumus sama dgn "Jarak dari VWAP" di
+// Market Context chart live. Positif = harga di atas garis.
+function indPctOf(price, ref){
+  if(price==null || ref==null || !isFinite(price) || !isFinite(ref) || ref===0) return null;
+  return (price - ref)/Math.abs(ref)*100;
+}
+// "+0.12%" / "-1.23%". Di bawah 0,1% pakai 3 desimal supaya forex/emas (jarang >0,1% dari garisnya) tidak tampak 0.
+function indFmtPct(x){
+  if(x==null || !isFinite(x)) return '';
+  const d = Math.abs(x) < 0.1 ? 3 : 2, s = x.toFixed(d);
+  if(Number(s)===0) return (0).toFixed(d)+'%';
+  return (x>0 ? '+' : '')+s+'%';
+}
+function indTextW(g, t){
+  try{ const m = g.measureText(t); if(m && m.width>0) return m.width; }catch(e){}
+  return t.length*6;
+}
+// Label kecil di tepi kanan area plot, tepat di atas garis. `pct` (opsional) ditambahkan sbg "(+0.12%)" berwarna
+// hijau/merah. Di dalam btDrawChart label DIANTREKAN (env.tags) lalu digambar indFlushTags supaya tidak saling
+// menimpa; tanpa antrean (dipanggil langsung) digambar seketika.
+function indTag(env, text, v, color, pct){
+  if(v==null || !isFinite(v)) return;
+  const segs = [{ t:text, c:color }];
+  if(pct!=null && isFinite(pct)) segs.push({ t:' ('+indFmtPct(pct)+')', c: pct>=0 ? '#3DDC84' : '#E5484D' });
+  if(env.tags){ env.tags.push({ v, segs }); return; }
+  const g = env.g;
+  g.font = '10px monospace'; g.fillStyle = color; g.textAlign = 'right';
+  g.fillText(segs.map(s=>s.t).join(''), env.plotW-4, env.y(v)-3);
+  g.textAlign = 'left';
+}
+// Gambar semua label yg diantrekan: urut menurut harga, label yg bertumpuk digeser (jarak 11 px), halo gelap
+// supaya terbaca di atas candle. Label di luar rentang harga yg tampak dibuang.
+function indFlushTags(env){
+  const tags = env.tags;
+  if(!tags || !tags.length) return;
+  const g = env.g, GAP = 11, items = [];
+  tags.forEach(t=>{ const y = env.y(t.v) - 3; if(y > -6 && y < env.plotH + 6) items.push({ t, y }); });
+  items.sort((a, b)=>a.y - b.y);
+  for(let k=1;k<items.length;k++) if(items[k].y < items[k-1].y + GAP) items[k].y = items[k-1].y + GAP;           // dorong turun
+  for(let k=items.length-1;k>=0;k--){ const lim = k===items.length-1 ? env.plotH-2 : items[k+1].y - GAP; if(items[k].y > lim) items[k].y = lim; } // tarik naik bila lewat dasar panel
+  g.font = '10px monospace'; g.textAlign = 'left'; g.lineJoin = 'round';
+  items.forEach(it=>{
+    const w = it.t.segs.map(s=>indTextW(g, s.t));
+    let x = env.plotW - 4 - w.reduce((a, b)=>a + b, 0);
+    it.t.segs.forEach((s, k)=>{
+      g.lineWidth = 3; g.strokeStyle = 'rgba(8,11,16,.9)'; g.strokeText(s.t, x, it.y);
+      g.fillStyle = s.c; g.fillText(s.t, x, it.y);
+      x += w[k];
+    });
+  });
+  g.lineWidth = 1;
+}
+
+/* ---- pabrik entri MA (EMA & SMA berbagi bentuk) ---- */
+function indMaEntry(kind){
+  const isEma = kind==='ema';
+  return {
+    name: isEma ? 'EMA' : 'SMA', group:'Tren & Harga', pane:'price', layer:'over', mode:'series',
+    desc: isEma ? 'Exponential Moving Average (seed = SMA n bar pertama). Chip dan label garis menampilkan persentase jarak harga ke garis. Bisa ditambah berkali-kali dgn periode berbeda.'
+                : 'Simple Moving Average. Chip dan label garis menampilkan persentase jarak harga ke garis. Bisa ditambah berkali-kali dgn periode berbeda.',
+    params: [
+      { k:'period', label:'Periode', type:'int', def:isEma?20:50, min:1, max:500 },
+      { k:'src', label:'Sumber harga', type:'select', def:'close', options:IND_SOURCES },
+      { k:'color', label:'Warna', type:'color', def:isEma?'#f2c94c':'#bb6bd9' },
+      { k:'width', label:'Tebal garis', type:'int', def:2, min:1, max:4 },
+      { k:'showPct', label:'Tampilkan % jarak harga ke garis', type:'bool', def:true },
+    ],
+    title: p => (isEma?'EMA':'SMA')+' ('+p.period+')',
+    calc(candles, p){
+      const s = indSource(candles, p.src);
+      return { v: isEma ? indMA(s, p.period, 2/(p.period+1)) : indSMA(s, p.period) };
+    },
+    bounds(res, p, env){ return indMinMax([res.v], env.startIdx, env.endIdx); },
+    draw(g, res, p, env){
+      indPath(env, res.v, p.color, p.width);
+      if(p.showPct){
+        const v = res.v[env.idx];
+        if(v!=null) indTag(env, (isEma?'EMA ':'SMA ')+p.period+'  '+btNum(v, env.dp), v, p.color, indPctOf(env.candles[env.idx].c, v));
+      }
+    },
+    pctRef(res, p, i){ return res.v[i]; },  // nilai garis di bar i -> chip menampilkan jarak close ke garis (%)
+    legend(res, p, i, dp){ return res.v[i]==null ? '' : res.v[i].toFixed(dp); },
+  };
+}
+
+const BT_INDICATORS = {
+  /* ---------- LIKUIDITAS ---------- */
+  liqdet: {
+    name:'Liquidity Detector', group:'Likuiditas', pane:'price', layer:'under', mode:'frame',
+    desc:'Zona likuiditas dari pivot high/low (sama dgn chart live, port "Liquidity Location Detector"): kotak melebar ke kanan sampai tersapu harga. Merah muda = sell-side (di atas pivot high), biru-hijau = buy-side (di bawah pivot low). Angka = kekuatan volume 1–10 relatif thd persentil ke-99 dari 1000 bar.',
+    params: [
+      { k:'pivotLen', label:'Panjang pivot (bar)', type:'int', def:15, min:3, max:60 },
+      { k:'volAvgLen', label:'Rata-rata volume (bar)', type:'int', def:10, min:1, max:50 },
+      { k:'boxHeightDiv', label:'Tinggi kotak = range candle ÷', type:'num', def:2, min:0.5, max:10, step:0.5 },
+      { k:'minVol', label:'Kekuatan volume minimum (0–10)', type:'num', def:0, min:0, max:10, step:0.5 },
+      { k:'showSwept', label:'Tampilkan zona yg sudah tersapu', type:'bool', def:true },
+      { k:'markSweep', label:'Tandai candle penyapu (×)', type:'bool', def:false },
+      { k:'showVol', label:'Tampilkan angka kekuatan volume', type:'bool', def:true },
+      { k:'resColor', label:'Warna sell-side', type:'color', def:'#ec4079' },
+      { k:'supColor', label:'Warna buy-side', type:'color', def:'#228bab' },
+    ],
+    title: p => 'Liquidity Detector ('+p.pivotLen+')',
+    // Zona dihitung HANYA dari candle sampai env.idx (identik dgn drawChart live: jendela = 430 bar sebelum
+    // jendela tampak s/d candle terakhir) -> tidak ada kebocoran masa depan; zona "tersapu" hanya bila
+    // penyapunya sudah terjadi pada/ sebelum candle yg sedang dibuka.
+    frame(candles, p, env){
+      const a = Math.max(0, env.startIdx - IND_ZONE_LOOKBACK);
+      const src = candles.slice(a, env.idx+1);
+      const zones = computeLiquidityZones(src, { pivotLen:p.pivotLen, volAvgLen:p.volAvgLen, boxHeightDiv:p.boxHeightDiv });
+      const out = [];
+      zones.forEach(z=>{
+        if(a + z.idxEnd < env.startIdx) return;          // berakhir sebelum jendela tampak
+        if(!p.showSwept && z.swept) return;
+        if(z.vol < p.minVol) return;
+        out.push({ type:z.type, i0:a+z.idxStart, i1:a+z.idxEnd, top:z.top, bottom:z.bottom, vol:z.vol, swept:z.swept });
+      });
+      return out;
+    },
+    // Skala hanya mengikuti zona yg TITIK AWALnya di jendela tampak (alasan sama dgn chart live).
+    bounds(zones, p, env){
+      let lo = Infinity, hi = -Infinity;
+      zones.forEach(z=>{ if(z.i0 >= env.startIdx){ if(z.top>hi) hi = z.top; if(z.bottom<lo) lo = z.bottom; if(z.top<lo) lo = z.top; if(z.bottom>hi) hi = z.bottom; } });
+      return hi>=lo ? { lo, hi } : null;
+    },
+    draw(g, zones, p, env){
+      zones.forEach(z=>{
+        const x0 = Math.max(0, z.i0 - env.startIdx)*env.cw;
+        const x1 = Math.min(env.slots, z.i1 - env.startIdx + 1)*env.cw;
+        const yT = env.y(z.top), yB = env.y(z.bottom);
+        g.fillStyle = indZoneFill(z.type==='res' ? p.resColor : p.supColor, z.vol);
+        g.fillRect(x0, yT, Math.max(x1-x0, 2), Math.max(yB-yT, 1));
+        if(p.showVol && z.vol>=1){
+          g.fillStyle = 'rgba(230,236,242,'+(0.35 + clamp(z.vol/10,0,1)*0.5).toFixed(2)+')';
+          g.font = (z.vol>=7 ? '11px' : '9px')+' monospace'; g.textAlign = 'right';
+          g.fillText(String(Math.round(z.vol)), x1-3, (yT+yB)/2+3);
+          g.textAlign = 'left';
+        }
+        if(p.markSweep && z.swept && z.i1>=env.startIdx && z.i1<=env.idx){
+          const cx = env.xc(z.i1), cy = env.y(z.type==='res' ? z.top : z.bottom);
+          g.strokeStyle = '#E7ECF2'; g.lineWidth = 1.5; g.beginPath();
+          g.moveTo(cx-4, cy-4); g.lineTo(cx+4, cy+4); g.moveTo(cx+4, cy-4); g.lineTo(cx-4, cy+4); g.stroke(); g.lineWidth = 1;
+        }
+      });
+    },
+    legend(zones){ const live = zones.filter(z=>!z.swept).length; return live+' aktif / '+zones.length+' zona'; },
+  },
+
+  engine: {
+    name:'Level Mesin Liquidity Flow', group:'Likuiditas', pane:'price', layer:'under', mode:'frame',
+    desc:'Level yg sedang dipantau mesin (sama dgn garis di chart live): liquidity eksternal atas/bawah, internal liquidity, SL & TP sinyal, dan FVG. Ini kondisi mesin PADA candle yg sedang dibuka (bukan riwayat).',
+    params: [
+      { k:'showExt', label:'Liquidity eksternal (atas/bawah)', type:'bool', def:true },
+      { k:'showInt', label:'Internal liquidity', type:'bool', def:true },
+      { k:'showSL', label:'SL sinyal', type:'bool', def:true },
+      { k:'showTP', label:'TP sinyal', type:'bool', def:true },
+      { k:'showFVG', label:'FVG', type:'bool', def:true },
+    ],
+    title: () => 'Level Mesin',
+    frame(candles, p, env){
+      const e = env.sim.engine;
+      return {
+        above:e.externalLiquidity.above, below:e.externalLiquidity.below,
+        internal:e.internalLiquidity ? e.internalLiquidity.price : null,
+        sl:e.sl, tp:e.tp, fvg:e.fvg ? { top:e.fvg.top, bottom:e.fvg.bottom } : null, status:e.status,
+      };
+    },
+    bounds(e, p){
+      const v = [];
+      if(p.showExt){ v.push(e.above, e.below); } if(p.showInt) v.push(e.internal);
+      if(p.showSL) v.push(e.sl); if(p.showTP) v.push(e.tp);
+      if(p.showFVG && e.fvg){ v.push(e.fvg.top, e.fvg.bottom); }
+      const ok = v.filter(x=>x!=null && isFinite(x));
+      return ok.length ? { lo:Math.min.apply(null, ok), hi:Math.max.apply(null, ok) } : null;
+    },
+    draw(g, e, p, env){
+      const f = v => btNum(v, env.dp);
+      if(p.showFVG && e.fvg){
+        g.fillStyle = 'rgba(78,161,243,0.15)';
+        g.fillRect(0, env.y(e.fvg.top), env.plotW, env.y(e.fvg.bottom)-env.y(e.fvg.top));
+        indTag(env, 'FVG', e.fvg.top, 'rgba(110,180,255,.95)');
+      }
+      if(p.showExt){
+        indHLine(env, e.above, '#4E5867', [4,3]); indTag(env, 'EXT ▲ '+(e.above!=null?f(e.above):''), e.above, '#8893A3');
+        indHLine(env, e.below, '#4E5867', [4,3]); indTag(env, 'EXT ▼ '+(e.below!=null?f(e.below):''), e.below, '#8893A3');
+      }
+      if(p.showInt && e.internal!=null){ indHLine(env, e.internal, '#E8B94A', [4,3]); indTag(env, 'INT '+f(e.internal), e.internal, '#E8B94A'); }
+      if(p.showSL && e.sl!=null){ indHLine(env, e.sl, '#E5484D', [4,3]); indTag(env, 'SL mesin '+f(e.sl), e.sl, '#E5484D'); }
+      if(p.showTP && e.tp!=null){ indHLine(env, e.tp, '#3DDC84', [4,3]); indTag(env, 'TP mesin '+f(e.tp), e.tp, '#3DDC84'); }
+    },
+    legend(e){ return e.status; },
+  },
+
+  pdhl: {
+    name:'PDH / PDL (High-Low Hari Sebelumnya)', group:'Likuiditas', pane:'price', layer:'over', mode:'series',
+    desc:'High & low HARI SEBELUMNYA — target likuiditas klasik (buy-side di PDH, sell-side di PDL). Garis redup bertitik = level sudah tersapu hari ini. Hari = UTC (geser dgn "jam reset"). Baru muncul setelah ada satu hari PENUH di data (hari pertama yg terpotong tidak dipakai).',
+    params: [
+      { k:'anchorHour', label:'Jam reset hari (UTC)', type:'int', def:0, min:0, max:23 },
+      { k:'showToday', label:'Tampilkan high/low hari berjalan', type:'bool', def:false },
+      { k:'color', label:'Warna', type:'color', def:'#e8b94a' },
+    ],
+    title: () => 'PDH / PDL',
+    calc(candles, p){
+      const n = candles.length, off = p.anchorHour*3600000;
+      const pdh = new Array(n).fill(null), pdl = new Array(n).fill(null), dh = new Array(n).fill(null), dl = new Array(n).fill(null);
+      const swH = new Array(n).fill(false), swL = new Array(n).fill(false);
+      if(!n) return { pdh, pdl, dh, dl, swH, swL };
+      // hari pertama dianggap terpotong bila candle pertama jauh setelah awal hari
+      const barMs = n>1 ? Math.max(candles[1].t - candles[0].t, 1) : 60000;
+      const inDay0 = (((candles[0].t - off) % 86400000) + 86400000) % 86400000;
+      let partial = inDay0 > 2*barMs;
+      let day = null, hi = -Infinity, lo = Infinity, pH = null, pL = null, sH = false, sL = false;
+      for(let i=0;i<n;i++){
+        const c = candles[i], d = indDayKey(c.t, p.anchorHour);
+        if(d!==day){
+          if(day!=null){ if(partial){ pH = null; pL = null; partial = false; } else { pH = hi; pL = lo; } }
+          day = d; hi = -Infinity; lo = Infinity; sH = false; sL = false;
+        }
+        if(c.h>hi) hi = c.h; if(c.l<lo) lo = c.l;
+        if(pH!=null && c.h>pH) sH = true;
+        if(pL!=null && c.l<pL) sL = true;
+        pdh[i] = pH; pdl[i] = pL; dh[i] = hi; dl[i] = lo; swH[i] = sH; swL[i] = sL;
+      }
+      return { pdh, pdl, dh, dl, swH, swL };
+    },
+    bounds(res, p, env){ return indMinMax([res.pdh, res.pdl], env.startIdx, env.endIdx); },
+    draw(g, res, p, env){
+      // garis per "lari" (nilai & status tersapu sama) supaya level baru tiap hari tampil sbg tangga
+      const run = (arr, sw, label)=>{
+        let i = env.startIdx;
+        while(i<env.endIdx){
+          const v = arr[i];
+          if(v==null){ i++; continue; }
+          let j = i; while(j+1<env.endIdx && arr[j+1]===v && sw[j+1]===sw[i]) j++;
+          const x0 = env.xc(i) - env.cw/2, x1 = env.xc(j) + env.cw/2, y = env.y(v);
+          g.strokeStyle = sw[i] ? indHexRgba(p.color, 0.4) : p.color; g.lineWidth = 1.2; g.setLineDash(sw[i] ? [2,3] : []);
+          g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); g.setLineDash([]); g.lineWidth = 1;
+          i = j+1;
+        }
+        const last = arr[env.idx];
+        if(last!=null) indTag(env, label+' '+btNum(last, env.dp)+(sw[env.idx]?' (tersapu)':''), last, sw[env.idx] ? indHexRgba(p.color, 0.6) : p.color);
+      };
+      run(res.pdh, res.swH, 'PDH'); run(res.pdl, res.swL, 'PDL');
+      if(p.showToday){
+        indPath(env, res.dh, indHexRgba(p.color, 0.55), 1, [1,3]); indPath(env, res.dl, indHexRgba(p.color, 0.55), 1, [1,3]);
+      }
+    },
+    legend(res, p, i, dp){
+      if(res.pdh[i]==null) return 'menunggu 1 hari penuh';
+      return 'PDH '+res.pdh[i].toFixed(dp)+'  PDL '+res.pdl[i].toFixed(dp);
+    },
+  },
+
+  /* ---------- TREN & HARGA ---------- */
+  ema: indMaEntry('ema'),
+  sma: indMaEntry('sma'),
+
+  vwap: {
+    name:'VWAP Sesi ± SD', group:'Tren & Harga', pane:'price', layer:'under', mode:'series',
+    desc:'VWAP tertimbang volume yg reset tiap hari UTC + pita ±1/±2 simpangan baku (seperti chart live). Dihitung dari harga tipikal (H+L+C)/3 tiap candle; utk pair tanpa tape asli "volume" = jumlah tick, jadi mendekati rata-rata harga tertimbang-waktu. Chip dan label garis menampilkan persentase jarak harga ke VWAP (seperti Jarak dari VWAP di chart live).',
+    params: [
+      { k:'anchorHour', label:'Jam reset sesi (UTC)', type:'int', def:0, min:0, max:23 },
+      { k:'band1', label:'Pita ±1 SD', type:'bool', def:true },
+      { k:'band2', label:'Pita ±2 SD', type:'bool', def:true },
+      { k:'color', label:'Warna', type:'color', def:'#7fb8ff' },
+      { k:'showPct', label:'Tampilkan % jarak harga ke VWAP', type:'bool', def:true },
+    ],
+    title: () => 'VWAP',
+    calc(candles, p){
+      const n = candles.length;
+      const v = new Array(n), u1 = new Array(n), l1 = new Array(n), u2 = new Array(n), l2 = new Array(n), brk = new Array(n).fill(false);
+      let day = null, pv = 0, vv = 0, ppv = 0;
+      for(let i=0;i<n;i++){
+        const c = candles[i], d = indDayKey(c.t, p.anchorHour);
+        if(d!==day){ day = d; pv = 0; vv = 0; ppv = 0; brk[i] = true; }
+        const px = (c.h+c.l+c.c)/3, w = c.v>0 ? c.v : 1;
+        pv += px*w; vv += w; ppv += px*px*w;
+        const m = pv/vv, sd = Math.sqrt(Math.max(ppv/vv - m*m, 0));
+        v[i] = m; u1[i] = m+sd; l1[i] = m-sd; u2[i] = m+2*sd; l2[i] = m-2*sd;
+      }
+      return { v, u1, l1, u2, l2, brk };
+    },
+    bounds(res, p, env){ return indMinMax(p.band2 ? [res.u2, res.l2] : p.band1 ? [res.u1, res.l1] : [res.v], env.startIdx, env.endIdx); },
+    draw(g, res, p, env){
+      if(p.band2){ indPath(env, res.u2, indHexRgba(p.color, 0.16), 1, [2,4], res.brk); indPath(env, res.l2, indHexRgba(p.color, 0.16), 1, [2,4], res.brk); }
+      if(p.band1){ indPath(env, res.u1, indHexRgba(p.color, 0.4), 1, [3,3], res.brk); indPath(env, res.l1, indHexRgba(p.color, 0.4), 1, [3,3], res.brk); }
+      indPath(env, res.v, p.color, 1.6, null, res.brk);
+      const last = res.v[env.idx];
+      if(last!=null) indTag(env, 'VWAP '+btNum(last, env.dp), last, p.color, p.showPct ? indPctOf(env.candles[env.idx].c, last) : null);
+    },
+    pctRef(res, p, i){ return res.v[i]; },
+    legend(res, p, i, dp){ return res.v[i]==null ? '' : res.v[i].toFixed(dp); },
+  },
+
+  bb: {
+    name:'Bollinger Bands', group:'Tren & Harga', pane:'price', layer:'over', mode:'series',
+    desc:'SMA n bar ± pengali × simpangan baku (populasi). Pita melebar saat volatilitas naik.',
+    params: [
+      { k:'period', label:'Periode', type:'int', def:20, min:2, max:300 },
+      { k:'mult', label:'Pengali SD', type:'num', def:2, min:0.1, max:6, step:0.1 },
+      { k:'src', label:'Sumber harga', type:'select', def:'close', options:IND_SOURCES },
+      { k:'fill', label:'Isi area pita', type:'bool', def:true },
+      { k:'color', label:'Warna', type:'color', def:'#56ccf2' },
+    ],
+    title: p => 'BB ('+p.period+', '+p.mult+')',
+    calc(candles, p){
+      const s = indSource(candles, p.src), basis = indSMA(s, p.period), sd = indStdev(s, p.period);
+      const up = basis.map((b,i)=> b==null ? null : b + p.mult*sd[i]);
+      const lo = basis.map((b,i)=> b==null ? null : b - p.mult*sd[i]);
+      return { basis, up, lo };
+    },
+    bounds(res, p, env){ return indMinMax([res.up, res.lo], env.startIdx, env.endIdx); },
+    draw(g, res, p, env){
+      if(p.fill) indBand(env, res.up, res.lo, indHexRgba(p.color, 0.08));
+      indPath(env, res.up, p.color, 1); indPath(env, res.lo, p.color, 1);
+      indPath(env, res.basis, indHexRgba(p.color, 0.7), 1, [4,3]);
+    },
+    legend(res, p, i, dp){ return res.basis[i]==null ? '' : 'A '+res.up[i].toFixed(dp)+'  M '+res.basis[i].toFixed(dp)+'  B '+res.lo[i].toFixed(dp); },
+  },
+
+  /* ---------- MOMENTUM & VOLATILITAS (panel bawah) ---------- */
+  rsi: {
+    name:'RSI', group:'Momentum & Volatilitas', pane:'sub', mode:'series',
+    desc:'Relative Strength Index (Wilder, 0–100). Di atas level jenuh-beli / di bawah jenuh-jual = momentum ekstrem.',
+    params: [
+      { k:'period', label:'Periode', type:'int', def:14, min:2, max:200 },
+      { k:'ob', label:'Level jenuh-beli', type:'int', def:70, min:50, max:95 },
+      { k:'os', label:'Level jenuh-jual', type:'int', def:30, min:5, max:50 },
+      { k:'color', label:'Warna', type:'color', def:'#bb6bd9' },
+    ],
+    title: p => 'RSI ('+p.period+')',
+    calc(candles, p){ return { v: indRSI(candles.map(c=>c.c), p.period) }; },
+    scale(){ return { lo:0, hi:100, dp:0 }; },
+    draw(g, res, p, env){
+      indHLine(env, p.ob, 'rgba(229,72,77,.45)', [3,3]); indHLine(env, p.os, 'rgba(61,220,132,.45)', [3,3]); indHLine(env, 50, 'rgba(136,147,163,.25)', [1,4]);
+      indPath(env, res.v, p.color, 1.4);
+    },
+    legend(res, p, i){ return res.v[i]==null ? '' : res.v[i].toFixed(1); },
+  },
+
+  atr: {
+    name:'ATR', group:'Momentum & Volatilitas', pane:'sub', mode:'series',
+    desc:'Average True Range — ukuran volatilitas per candle. Bawaan SMA 14 = ATR yg dipakai mesin & SL "× ATR" di Panel Order.',
+    params: [
+      { k:'period', label:'Periode', type:'int', def:14, min:1, max:200 },
+      { k:'method', label:'Penghalusan', type:'select', def:'sma', options:[ { v:'sma', l:'SMA (sama dgn mesin)' }, { v:'rma', l:'RMA / Wilder' } ] },
+      { k:'color', label:'Warna', type:'color', def:'#f2994a' },
+    ],
+    title: p => 'ATR ('+p.period+')',
+    calc(candles, p){
+      const tr = indTR(candles);
+      return { v: p.method==='rma' ? indMA(tr, p.period, 1/p.period) : indSMA(tr, p.period) };
+    },
+    scale(res, p, env){
+      const mm = indMinMax([res.v], env.startIdx, env.endIdx);
+      if(!mm) return { lo:0, hi:1, dp:env.dp };
+      const pad = (mm.hi-mm.lo)*0.12 || mm.hi*0.05 || 1e-9;
+      return { lo:Math.max(0, mm.lo-pad), hi:mm.hi+pad, dp:env.dp+1 };
+    },
+    draw(g, res, p, env){ indPath(env, res.v, p.color, 1.4); },
+    legend(res, p, i, dp){ return res.v[i]==null ? '' : res.v[i].toFixed(dp+1); },
+  },
+
+  /* ---------- VOLUME (panel bawah) ---------- */
+  vol: {
+    name:'Volume', group:'Volume', pane:'sub', mode:'series',
+    desc:'Histogram volume per candle (hijau = candle naik, merah = turun) + rata-rata bergerak. Pair non-kripto: volume = jumlah tick.',
+    params: [
+      { k:'maPeriod', label:'Periode rata-rata (0 = mati)', type:'int', def:20, min:0, max:300 },
+      { k:'color', label:'Warna rata-rata', type:'color', def:'#e8b94a' },
+    ],
+    title: p => 'Volume'+(p.maPeriod>0 ? ' / MA '+p.maPeriod : ''),
+    calc(candles, p){
+      const v = candles.map(c=>c.v>0 ? c.v : 0);
+      return { v, ma: p.maPeriod>0 ? indSMA(v, p.maPeriod) : v.map(()=>null) };
+    },
+    scale(res, p, env){
+      const mm = indMinMax([res.v, res.ma], env.startIdx, env.endIdx);
+      return { lo:0, hi:mm && mm.hi>0 ? mm.hi*1.1 : 1, dp:0 };
+    },
+    draw(g, res, p, env){
+      const bw = Math.max(env.cw*0.7, 1);
+      for(let i=env.startIdx;i<env.endIdx;i++){
+        const c = env.candles[i], vv = res.v[i]; if(!(vv>0)) continue;
+        g.fillStyle = c.c>=c.o ? 'rgba(61,220,132,.55)' : 'rgba(229,72,77,.55)';
+        const y = env.y(vv); g.fillRect(env.xc(i)-bw/2, y, bw, env.y(0)-y);
+      }
+      indPath(env, res.ma, p.color, 1.2);
+    },
+    legend(res, p, i){ const v = res.v[i]; return v==null ? '' : (v>=1000 ? (v/1000).toFixed(1)+'k' : v.toFixed(0)); },
+  },
+};
+
+/* ---- parameter, instance, & penyimpanan ---- */
+function indNormParam(spec, raw){
+  if(spec.type==='int' || spec.type==='num'){
+    let v = Number(raw);
+    if(raw==null || raw==='' || typeof raw==='boolean' || !isFinite(v)) return spec.def;
+    if(spec.type==='int') v = Math.round(v);
+    if(spec.min!=null) v = Math.max(spec.min, v);
+    if(spec.max!=null) v = Math.min(spec.max, v);
+    return v;
+  }
+  if(spec.type==='bool') return typeof raw==='boolean' ? raw : spec.def;
+  if(spec.type==='select') return spec.options.some(o=>o.v===raw) ? raw : spec.def;
+  if(spec.type==='color') return (typeof raw==='string' && /^#[0-9a-fA-F]{6}$/.test(raw)) ? raw.toLowerCase() : spec.def;
+  return spec.def;
+}
+function indNormalizeParams(type, raw){
+  const def = BT_INDICATORS[type], out = {};
+  def.params.forEach(s=>{
+    out[s.k] = indNormParam(s, raw && Object.prototype.hasOwnProperty.call(raw, s.k) ? raw[s.k] : s.def);
+  });
+  return out;
+}
+// uid unik di dalam `list` (nomor terbesar + 1)
+function indMakeInst(type, raw, list){
+  let n = 0;
+  (list||[]).forEach(i=>{ const m = parseInt(String(i.uid).replace(/\D/g,''), 10); if(m>n) n = m; });
+  return { uid:'i'+(n+1), type, visible:true, params:indNormalizeParams(type, raw) };
+}
+function indDefaultList(){
+  const out = [];
+  ['liqdet', 'engine'].forEach(t=>out.push(indMakeInst(t, null, out)));
+  return out;
+}
+function indSerialize(list){
+  return JSON.stringify({ v:1, list:list.map(i=>({ type:i.type, visible:!!i.visible, params:i.params })) });
+}
+// null bila teks rusak / versi tak dikenal; jenis yg tak dikenal dibuang; parameter dinormalisasi.
+function indDeserialize(text){
+  let o; try{ o = JSON.parse(text); }catch(e){ return null; }
+  if(!o || o.v!==1 || !Array.isArray(o.list)) return null;
+  const out = [];
+  o.list.forEach(r=>{
+    if(!r || typeof r.type!=='string' || !Object.prototype.hasOwnProperty.call(BT_INDICATORS, r.type) || out.length>=IND_MAX_ACTIVE) return;
+    const inst = indMakeInst(r.type, r.params, out);
+    inst.visible = r.visible!==false;
+    out.push(inst);
+  });
+  return out;
+}
+
+/* ============================== 6h. BACKTEST: PANEL INDIKATOR (UI) ============================== */
+// Panel "📈 Indikator" di samping chart backtest: indikator aktif (👁 tampil/sembunyi, ⚙ parameter, ▲▼ urutan,
+// ✕ hapus), katalog + pencarian, dan bantuan cara pakai. Form parameter dibangun OTOMATIS dari
+// BT_INDICATORS[type].params (6g). Daftar disimpan di localStorage (IND_STORE_KEY). Perubahan STRUKTUR
+// (tambah/hapus/urut) membangun ulang panel; ubah PARAMETER tidak (fokus input terjaga) -- hanya hitung
+// ulang indikator itu + gambar ulang chart.
+const IND_PALETTE = ['#f2c94c', '#56ccf2', '#bb6bd9', '#f2994a', '#6fcf97', '#eb5757', '#9b8cff', '#2d9cdb'];
+
+function btIndSave(){ try{ localStorage.setItem(IND_STORE_KEY, indSerialize(BT.inds)); }catch(e){} }
+function btIndLoad(){
+  let list = null;
+  try{ const t = localStorage.getItem(IND_STORE_KEY); if(t!=null) list = indDeserialize(t); }catch(e){}
+  BT.inds = list || indDefaultList(); // daftar kosong yg disimpan user tetap kosong (array kosong = truthy)
+}
+function btIndColor(inst){ const p = inst.params; return p.color || p.resColor || '#8893A3'; }
+function btIndActive(){
+  const out = [];
+  BT.inds.forEach(inst=>{ const def = BT_INDICATORS[inst.type]; if(inst.visible && def) out.push({ inst, def }); });
+  return out;
+}
+// series: dihitung sekali & di-cache (kunci = jenis+parameter, per simulasi); frame: dihitung tiap gambar.
+function btIndResult(inst, def, sim, env){
+  if(def.mode==='frame') return def.frame(sim.candles, inst.params, env);
+  const key = inst.type+'|'+JSON.stringify(inst.params);
+  let ce = BT.indCache.get(inst.uid);
+  if(!ce || ce.key!==key || ce.sim!==sim){ ce = { key, sim, res:def.calc(sim.candles, inst.params) }; BT.indCache.set(inst.uid, ce); }
+  return ce.res;
+}
+function btIndMsg(text, kind){
+  const e = btEl('btIndMsg'); if(!e) return;
+  e.textContent = text || ''; e.className = 'bt-ordermsg '+(kind||'');
+  clearTimeout(BT._imT);
+  if(text) BT._imT = setTimeout(()=>{ e.textContent = ''; }, 5000);
+}
+
+/* ---- legend di atas chart: satu chip per indikator + nilai di candle yg di-hover ---- */
+function btIndRenderLegend(){
+  const el = btEl('btIndLegend'); if(!el) return;
+  el.innerHTML = BT.inds.map(inst=>{
+    const def = BT_INDICATORS[inst.type];
+    return '<span class="ind-chip'+(inst.visible?'':' off')+'" data-uid="'+inst.uid+'"><i style="background:'+btIndColor(inst)+'"></i>'
+      + '<span class="in">'+def.title(inst.params)+'</span><span class="iv"></span><span class="ip"></span>'
+      + '<button data-ia="vis" title="'+(inst.visible?'Sembunyikan':'Tampilkan')+'">'+(inst.visible?'👁':'🚫')+'</button>'
+      + '<button data-ia="cfg" title="Atur parameter">⚙</button><button data-ia="del" title="Hapus indikator">✕</button></span>';
+  }).join('') || '<span class="bt-muted">Belum ada indikator — klik “📈 Indikator” untuk menambah.</span>';
+  const cnt = btEl('btIndCount'); if(cnt) cnt.textContent = BT.inds.length ? '('+BT.inds.length+')' : '';
+  btIndLegendValues(BT.hoverIdx);
+}
+function btIndLegendValues(i){
+  const sim = BT.sim; if(!sim) return;
+  const idx = (i==null || i>sim.idx) ? sim.idx : i;
+  document.querySelectorAll('#btIndLegend .ind-chip').forEach(ch=>{
+    const uid = ch.getAttribute('data-uid'), inst = BT.inds.find(x=>x.uid===uid), el = ch.querySelector('.iv');
+    if(!inst || !el) return;
+    const def = BT_INDICATORS[inst.type], res = BT.indRes.get(uid);
+    let t = '';
+    try{ if(res!=null && def.legend) t = def.legend(res, inst.params, idx, sim.asset.dp) || ''; }catch(e){}
+    if(BT.indErr[uid]) t = '⚠ '+BT.indErr[uid];
+    ch.classList.toggle('err', !!BT.indErr[uid]);
+    if(el.textContent !== t) el.textContent = t;
+    // persentase jarak close (candle yg di-hover / terakhir) ke garis indikator: (close - garis) / garis * 100
+    const ip = ch.querySelector('.ip');
+    if(ip){
+      let pt = '', cls = 'ip';
+      if(res!=null && def.pctRef && !BT.indErr[uid] && inst.params.showPct!==false){
+        let ref = null; try{ ref = def.pctRef(res, inst.params, idx); }catch(e){}
+        const pct = indPctOf(sim.candles[idx] ? sim.candles[idx].c : null, ref);
+        if(pct!=null){ pt = indFmtPct(pct); cls = 'ip '+(pct>=0 ? 'bt-pos' : 'bt-neg'); }
+      }
+      if(ip.textContent !== pt) ip.textContent = pt;
+      if(ip.className !== cls) ip.className = cls;
+    }
+  });
+}
+
+/* ---- panel: indikator aktif + form parameter ---- */
+function btIndParamHtml(inst, s){
+  const v = inst.params[s.k];
+  if(s.type==='bool') return '<label class="ind-chk"><input type="checkbox" data-ik="'+s.k+'"'+(v?' checked':'')+'> '+s.label+'</label>';
+  if(s.type==='select') return '<label>'+s.label+'<select data-ik="'+s.k+'">'+s.options.map(o=>'<option value="'+o.v+'"'+(o.v===v?' selected':'')+'>'+o.l+'</option>').join('')+'</select></label>';
+  if(s.type==='color') return '<label>'+s.label+'<input type="color" data-ik="'+s.k+'" value="'+v+'"></label>';
+  return '<label>'+s.label+'<input type="number" data-ik="'+s.k+'" value="'+v+'"'+(s.min!=null?' min="'+s.min+'"':'')+(s.max!=null?' max="'+s.max+'"':'')+' step="'+(s.step || (s.type==='int'?1:'any'))+'"></label>';
+}
+function btIndActiveHtml(){
+  if(!BT.inds.length) return '<div class="bt-muted ind-empty">Belum ada indikator aktif — pilih dari daftar di bawah.</div>';
+  const n = BT.inds.length;
+  return BT.inds.map((inst, k)=>{
+    const def = BT_INDICATORS[inst.type], open = BT.indOpen.has(inst.uid);
+    return '<div class="ind-item'+(inst.visible?'':' off')+'" data-uid="'+inst.uid+'">'
+      + '<div class="ind-row"><i style="background:'+btIndColor(inst)+'"></i><b class="ind-title">'+def.title(inst.params)+'</b>'
+      + '<span class="ind-tag">'+(def.pane==='sub'?'panel bawah':'di harga')+'</span><span class="grow"></span>'
+      + '<button data-ia="vis" title="'+(inst.visible?'Sembunyikan':'Tampilkan')+'">'+(inst.visible?'👁':'🚫')+'</button>'
+      + '<button data-ia="cfg" class="'+(open?'on':'')+'" title="Atur parameter">⚙</button>'
+      + '<button data-ia="up" title="Naikkan urutan"'+(k===0?' disabled':'')+'>▲</button>'
+      + '<button data-ia="down" title="Turunkan urutan"'+(k===n-1?' disabled':'')+'>▼</button>'
+      + '<button data-ia="del" title="Hapus indikator">✕</button></div>'
+      + (open ? '<div class="ind-params">'+def.params.map(s=>btIndParamHtml(inst, s)).join('')
+          + '<button class="btn bt-mini" data-ia="reset" title="Kembalikan semua parameter indikator ini ke nilai bawaan">↺ Parameter bawaan</button></div>' : '')
+      + '</div>';
+  }).join('');
+}
+
+/* ---- panel: katalog ---- */
+function btIndCatalogHtml(){
+  const q = (BT.indSearch||'').trim().toLowerCase();
+  let html = '';
+  IND_GROUPS.forEach(gr=>{
+    const items = Object.keys(BT_INDICATORS).filter(t=>{
+      const d = BT_INDICATORS[t];
+      return d.group===gr && (!q || (d.name+' '+gr+' '+d.desc+' '+t).toLowerCase().indexOf(q)>=0);
+    });
+    if(!items.length) return;
+    html += '<div class="ind-grp">'+gr+'</div>' + items.map(t=>{
+      const d = BT_INDICATORS[t];
+      return '<div class="ind-cat"><div class="ind-cat-txt"><b>'+d.name+'</b> <span class="ind-tag">'+(d.pane==='sub'?'panel bawah':'di harga')+'</span>'
+        + '<div class="bt-muted">'+d.desc+'</div></div><button class="btn bt-mini" data-iadd="'+t+'">＋ Tambah</button></div>';
+    }).join('');
+  });
+  return html || '<div class="bt-muted">Tidak ada indikator yang cocok dengan pencarian.</div>';
+}
+function btIndRenderPanel(){
+  const a = btEl('btIndActive'), c = btEl('btIndCatalog'); if(!a || !c) return;
+  a.innerHTML = btIndActiveHtml();
+  c.innerHTML = btIndCatalogHtml();
+  const h = btEl('btIndActiveH'); if(h) h.textContent = 'Aktif di chart ('+BT.inds.length+'/'+IND_MAX_ACTIVE+')';
+}
+
+/* ---- aksi ---- */
+// structural=true -> bangun ulang panel; selalu: simpan, perbarui legend, gambar ulang chart.
+function btIndChanged(structural){
+  btIndSave(); btIndRenderLegend();
+  if(structural) btIndRenderPanel();
+  btDrawChartSoon();
+}
+function btIndTogglePanel(force){
+  BT.indPanel = force==null ? !BT.indPanel : !!force;
+  btEl('btIndPanel').style.display = BT.indPanel ? 'block' : 'none';
+  btEl('btIndBtn').classList.toggle('on', BT.indPanel);
+  if(BT.indPanel) btIndRenderPanel();
+  btDrawChartSoon(); // lebar chart berubah saat panel buka/tutup
+}
+function btIndAdd(type){
+  if(!BT_INDICATORS[type]) return;
+  if(BT.inds.length>=IND_MAX_ACTIVE){ btIndMsg('Maksimum '+IND_MAX_ACTIVE+' indikator aktif — hapus salah satu dulu.', 'bad'); return; }
+  const same = BT.inds.filter(i=>i.type===type).length;
+  const inst = indMakeInst(type, null, BT.inds);
+  // jenis yg sama ditambah lagi (mis. EMA kedua) diberi warna lain supaya terbedakan
+  if(same>0 && BT_INDICATORS[type].params.some(s=>s.k==='color')) inst.params.color = IND_PALETTE[same % IND_PALETTE.length];
+  BT.inds.push(inst); BT.indOpen.clear(); BT.indOpen.add(inst.uid); // akordeon: hanya yg baru ditambah yg terbuka
+  btIndChanged(true);
+  btIndMsg(BT_INDICATORS[type].name+' ditambahkan.', 'ok');
+  const el = btEl('btIndActive').querySelector('[data-uid="'+inst.uid+'"]'); if(el && el.scrollIntoView) el.scrollIntoView({ block:'nearest' });
+}
+function btIndAction(uid, act){
+  const k = BT.inds.findIndex(i=>i.uid===uid); if(k<0) return;
+  const inst = BT.inds[k];
+  if(act==='vis') inst.visible = !inst.visible;
+  else if(act==='cfg'){
+    if(BT.indOpen.has(uid)) BT.indOpen.delete(uid); else BT.indOpen.add(uid);
+    if(!BT.indPanel) btIndTogglePanel(true);
+  }
+  else if(act==='del'){ BT.inds.splice(k, 1); BT.indOpen.delete(uid); BT.indCache.delete(uid); BT.indRes.delete(uid); }
+  else if(act==='up' && k>0){ BT.inds[k] = BT.inds[k-1]; BT.inds[k-1] = inst; }
+  else if(act==='down' && k<BT.inds.length-1){ BT.inds[k] = BT.inds[k+1]; BT.inds[k+1] = inst; }
+  else if(act==='reset'){ inst.params = indNormalizeParams(inst.type, null); BT.indCache.delete(uid); }
+  btIndChanged(true);
+  if(act==='cfg'){ const el = btEl('btIndActive').querySelector('[data-uid="'+uid+'"]'); if(el && el.scrollIntoView) el.scrollIntoView({ block:'nearest' }); }
+}
+// Ubah satu parameter. 'input' = pratinjau langsung (abaikan nilai angka yg belum selesai diketik),
+// 'change' = nilai final: dinormalisasi (clamp/bulat) lalu ditulis balik ke kolom.
+function btIndOnParam(e){
+  const t = e.target.closest('[data-ik]'); if(!t) return;
+  const item = t.closest('[data-uid]'); if(!item) return;
+  const inst = BT.inds.find(i=>i.uid===item.getAttribute('data-uid')); if(!inst) return;
+  const spec = BT_INDICATORS[inst.type].params.find(p=>p.k===t.getAttribute('data-ik')); if(!spec) return;
+  const numeric = spec.type==='int' || spec.type==='num';
+  if(numeric && e.type==='input' && !isFinite(parseFloat(t.value))) return;
+  const v = indNormParam(spec, spec.type==='bool' ? t.checked : t.value);
+  inst.params[spec.k] = v;
+  if(numeric && e.type==='change') t.value = v;
+  BT.indCache.delete(inst.uid);
+  btIndSave(); btIndRenderLegend();
+  const ti = item.querySelector('.ind-title'); if(ti) ti.textContent = BT_INDICATORS[inst.type].title(inst.params);
+  const dot = item.querySelector('.ind-row > i'); if(dot) dot.style.background = btIndColor(inst);
+  btDrawChartSoon();
+}
+function btIndInit(){
+  btIndLoad();
+  btEl('btIndBtn').addEventListener('click', ()=>btIndTogglePanel());
+  btEl('btIndClose').addEventListener('click', ()=>btIndTogglePanel(false));
+  btEl('btIndSearch').addEventListener('input', e=>{ BT.indSearch = e.target.value; btEl('btIndCatalog').innerHTML = btIndCatalogHtml(); });
+  btEl('btIndClear').addEventListener('click', ()=>{ BT.inds = []; BT.indOpen.clear(); BT.indCache.clear(); btIndChanged(true); });
+  btEl('btIndReset').addEventListener('click', ()=>{ BT.inds = indDefaultList(); BT.indOpen.clear(); BT.indCache.clear(); btIndChanged(true); });
+  const onClick = e=>{
+    const add = e.target.closest('[data-iadd]');
+    if(add){ btIndAdd(add.getAttribute('data-iadd')); return; }
+    const b = e.target.closest('[data-ia]'); if(!b || b.disabled) return;
+    const host = b.closest('[data-uid]'); if(host) btIndAction(host.getAttribute('data-uid'), b.getAttribute('data-ia'));
+  };
+  btEl('btIndPanel').addEventListener('click', onClick);
+  btEl('btIndLegend').addEventListener('click', onClick);
+  btEl('btIndActive').addEventListener('input', btIndOnParam);
+  btEl('btIndActive').addEventListener('change', btIndOnParam);
+  btIndRenderLegend(); btIndRenderPanel();
 }
 
 /* ================================ 7. RENDER ================================ */
@@ -3922,28 +4834,31 @@ function percentileNearestRank(sortedAsc, p){
   return sortedAsc[rank-1];
 }
 
-function computeLiquidityZones(candles){
+function computeLiquidityZones(candles, opts){
+  // opts (opsional) menimpa ZONE -- dipakai indikator "Liquidity Detector" di chart backtest (parameternya bisa
+  // diubah di panel Indikator). Tanpa opts perilakunya IDENTIK dgn sebelumnya (chart live).
+  const Z = opts ? Object.assign({}, ZONE, opts) : ZONE;
   const n = candles.length;
-  if(n < ZONE.pivotLen+2) return [];
+  if(n < Z.pivotLen+2) return [];
   const vol = new Array(n);
   for(let i=0;i<n;i++){
-    const lo=Math.max(0,i-(ZONE.volAvgLen-1)); let s=0,cnt=0;
+    const lo=Math.max(0,i-(Z.volAvgLen-1)); let s=0,cnt=0;
     for(let k=lo;k<=i;k++){ s+=(candles[k].v||1); cnt++; }
     vol[i] = (s/cnt)/10;
   }
-  const tailStart = Math.max(0, n-ZONE.volPercentileWindow);
+  const tailStart = Math.max(0, n-Z.volPercentileWindow);
   const sortedVol = vol.slice(tailStart).slice().sort((a,b)=>a-b);
   const referenceVol = percentileNearestRank(sortedVol,99) || 1e-9;
   const hh = new Array(n), ll = new Array(n);
   for(let i=0;i<n;i++){
-    const lo=Math.max(0,i-(ZONE.pivotLen-1)); let hi=-Infinity, li=Infinity;
+    const lo=Math.max(0,i-(Z.pivotLen-1)); let hi=-Infinity, li=Infinity;
     for(let k=lo;k<=i;k++){ if(candles[k].h>hi) hi=candles[k].h; if(candles[k].l<li) li=candles[k].l; }
     hh[i]=hi; ll[i]=li;
   }
   const zones=[];
   for(let i=1;i<n;i++){
     const prev=candles[i-1], curr=candles[i];
-    const size=(prev.h-prev.l)/ZONE.boxHeightDiv;
+    const size=(prev.h-prev.l)/Z.boxHeightDiv;
     const normVol=Math.min(10,(vol[i-1]/referenceVol)*5);
     if(hh[i-1]===prev.h && curr.h<hh[i]){
       const bottom=prev.h, top=prev.h+size;
