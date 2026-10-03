@@ -275,7 +275,7 @@
   .bt-charthead{display:flex;gap:8px 10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;font-size:12px;}
   .bt-chip{font-family:var(--mono);font-size:10.5px;padding:2px 8px;border-radius:20px;background:var(--panel3);border:1px solid var(--line);color:var(--mut);}
   .bt-hover{font-family:var(--mono);font-size:10.5px;color:var(--mut);margin-left:auto;}
-  #btChart{width:100%;height:380px;display:block;background:#080B10;border:1px solid var(--line-soft);border-radius:8px;cursor:crosshair;}
+  #btChart{width:100%;height:380px;display:block;background:#080B10;border:1px solid var(--line-soft);border-radius:8px;cursor:crosshair;touch-action:none;}
   #btEq{width:100%;height:320px;display:block;background:#080B10;border:1px solid var(--line-soft);border-radius:8px;}
   .bt-replay{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;}
   .bt-replay select{background:var(--panel3);border:1px solid var(--line);color:var(--text);padding:5px 6px;border-radius:6px;font:12px var(--mono);}
@@ -346,6 +346,10 @@
   .ind-help ol{margin:8px 0 4px;padding-left:18px;line-height:1.55;} .ind-help p{margin:6px 0;line-height:1.5;}
   .ind-help code{background:var(--panel3);padding:0 4px;border-radius:4px;font-family:var(--mono);font-size:10.5px;}
   @media (max-width:1100px){ .bt-chartwrap{flex-direction:column;} .bt-indpanel{flex:none;width:100%;} }
+  .bt-planrow{display:flex;align-items:center;gap:6px;margin:0 0 6px;font-size:10.5px;color:var(--mut);}
+  .bt-planrow .grow{flex:1;}
+  .bt-planrow .btn.on{background:var(--panel3);}
+  #btPlanBuy.on{border-color:var(--green);color:var(--green);} #btPlanSell.on{border-color:var(--red);color:var(--red);}
   @media (max-width:1000px){ .detail{grid-template-columns:1fr;} .scanner{width:280px;flex:0 0 280px;} }
   @media (max-width:760px){
     .layout{flex-direction:column;}
@@ -537,7 +541,7 @@
               <div class="bt-progress"><i id="btProgBar"></i></div>
               <button class="btn" id="btToEnd">⏩ Sampai Akhir</button>
             </div>
-            <div class="chart-hint">Scroll = zoom · Penanda: ▲/▼ entri, ■ keluar (hijau untung/merah rugi), ◆ sinyal mesin (ungu = dieksekusi) · Zona merah muda = sell-side, biru-hijau = buy-side (angka = kekuatan volume) · 📈 Indikator = tambah/atur indikator</div>
+            <div class="chart-hint">Scroll = zoom · Penanda: ▲/▼ entri, ■ keluar (hijau untung/merah rugi), ◆ sinyal mesin (ungu = dieksekusi) · Zona merah muda = sell-side, biru-hijau = buy-side (angka = kekuatan volume) · 📈 Indikator = tambah/atur indikator · Geser garis SL/TP di chart untuk mengubahnya (✕ = hapus, +SL/+TP = tambah)</div>
           </div>
           <div class="card">
             <div class="tabbar" id="btTabs" style="padding:0;background:transparent">
@@ -556,6 +560,10 @@
             <h3>Panel Order</h3>
             <div class="bt-quote"><span>BID <b id="btBid">—</b></span><span>ASK <b id="btAsk">—</b></span></div>
             <div class="bt-sb"><button class="bt-sell" id="btSell">SELL</button><button class="bt-buy" id="btBuy">BUY</button></div>
+            <div class="bt-planrow"><span>📐 Atur SL/TP di chart:</span><span class="grow"></span>
+              <button class="btn bt-mini" id="btPlanBuy" title="Tampilkan garis rencana BUY di chart (geser SL/TP/entri), lalu tekan BUY">Rencana BUY</button>
+              <button class="btn bt-mini" id="btPlanSell" title="Tampilkan garis rencana SELL di chart (geser SL/TP/entri), lalu tekan SELL">Rencana SELL</button></div>
+            <div class="bt-muted" id="btPlanHint" style="display:none;margin-bottom:6px">Geser garis SL/TP/entri di chart (✕ = hapus, +SL/+TP = tambah), lalu tekan BUY/SELL.</div>
             <label>Tipe order
               <select id="btOtype"><option value="market">Market</option><option value="limit">Limit</option><option value="stop">Stop</option></select></label>
             <label class="bt-fld" id="btPriceWrap" style="display:none">Harga order <input type="number" id="btOprice" step="any" placeholder="harga"></label>
@@ -1010,6 +1018,48 @@ function updateVwap(vw, ts, price, size){
     const variance = Math.max(vw.ppv/vw.v - vw.vwap*vw.vwap, 0);
     vw.std = Math.sqrt(variance);
   } else if(vw.vwap===null) vw.vwap = price;
+}
+
+// V1.6: VWAP dari HISTORI. Dulu VWAP live cuma dihitung dari tick sejak halaman dibuka (mulai dari nol): kurva baru
+// muncul di candle live pertama dan nilai "VWAP Sesi" cuma rata-rata sejak halaman dibuka, bukan sejak awal hari UTC.
+// Sekarang setelah histori (Binance klines / trendbar cTrader) masuk, SEMUA candle (histori + live yg sudah ada)
+// dipasangi vwap/vstd dari satu rumus per-candle -- harga tipikal (H+L+C)/3 x volume, reset tiap hari UTC (batas yg
+// sama dgn updateVwap) -- dan state tick-level app.vwap disambung dari akumulasi hari berjalan, sehingga tick berikutnya
+// melanjutkan VWAP hari itu tanpa lompatan. Aproksimasi per-candle sedikit beda dari per-tick, tapi seragam & tanpa
+// lubang. Idempoten: dipanggil ulang (mis. histori masuk lagi setelah reconnect) menghitung ulang dari candle.
+function vwapTagCandles(candles){
+  let day = null, pv = 0, vv = 0, ppv = 0, t0 = null;
+  for(let i=0;i<candles.length;i++){
+    const c = candles[i], d = Math.floor(c.t/86400000);
+    if(d!==day){ day = d; pv = 0; vv = 0; ppv = 0; t0 = c.t; }
+    const px = (c.h+c.l+c.c)/3, w = c.v>0 ? c.v : 1;
+    pv += px*w; vv += w; ppv += px*px*w;
+    const m = pv/vv;
+    c.vwap = m; c.vstd = Math.sqrt(Math.max(ppv/vv - m*m, 0));
+  }
+  return { day, pv, vv, ppv, t0 };   // t0 = waktu candle PERTAMA hari terakhir (seberapa dini deret ini mencakup hari itu)
+}
+// Sambungkan state tick-level ke akumulasi hari terakhir dari histori (tick berikutnya menambah di atasnya).
+function vwapSeedState(vw, st){
+  if(st.day==null || !(st.vv>0)) return;
+  vw.bucket = st.day; vw.pv = st.pv; vw.v = st.vv; vw.ppv = st.ppv;
+  vw.vwap = st.pv/st.vv; vw.std = Math.sqrt(Math.max(st.ppv/st.vv - vw.vwap*vw.vwap, 0));
+}
+// State tick-level diambil dari deret (M1/M5) yg mencakup LEBIH BANYAK hari berjalan: hari yg lebih baru menang, bila hari
+// sama maka yg candle pertamanya lebih dini (M1 menang bila seri). Mis. histori M1 cuma 1000 bar (~16,7 jam) sedangkan M5
+// mencakup berhari-hari -> state dari M5, jadi VWAP sesi tetap dihitung sejak 00:00 UTC, bukan sejak awal histori M1.
+function vwapPickState(a, b){
+  const okA = a.day!=null && a.vv>0, okB = b.day!=null && b.vv>0;
+  if(!okA) return okB ? b : null;
+  if(!okB) return a;
+  if(a.day!==b.day) return a.day>b.day ? a : b;
+  return b.t0 < a.t0 ? b : a;
+}
+function rebuildVwap(app){
+  // series() ikut menyertakan candle yg sedang terbentuk (objek yg sama), jadi ia ikut bertanda & terhitung.
+  const s1 = vwapTagCandles(app.m1Agg.series()), s5 = vwapTagCandles(app.m5Agg.series());
+  const st = vwapPickState(s1, s5);
+  if(st) vwapSeedState(app.vwap, st);
 }
 
 /* --------- Rolling buy/sell volume per bucket M1, dipakai anotasi Order Flow (§ANOT) ---------
@@ -2022,6 +2072,18 @@ function replayHistory(app, opts){
   app.engine = runReplayLoop(app.asset, m1, m5, tickSize, opts&&opts.hook, opts&&opts.settings);
 }
 
+// Satu tick masuk: VWAP + arus beli/jual + candle M1/M5. Candle yg sedang terbentuk ditandai VWAP terkini (M1 dan M5).
+function ingestTrade(app, m){
+  const mid = m.price, ts = m.ts||Date.now();
+  updateVwap(app.vwap, ts, mid, m.size);
+  updateFlow(app.flow, ts, m.side, m.size, m.inferred);
+  const tag = { vwap:app.vwap.vwap, vstd:app.vwap.std };
+  app.m1Agg.push(ts, mid, m.size);
+  app.m1Agg.tagCurrent(tag);
+  app.m5Agg.push(ts, mid, m.size);
+  app.m5Agg.tagCurrent(tag);
+}
+
 function startConnections(){
   const base = document.getElementById('bridgeUrl').value.trim() || 'ws://localhost:8787';
   const src = document.getElementById('sourceMode').value;
@@ -2031,20 +2093,14 @@ function startConnections(){
     if(app.conn) app.conn.close();
     const callbacks = {
       onMeta:(m)=>{ app.meta=m; },
-      onTrade:(m)=>{
-        const mid = m.price; const ts = m.ts||Date.now();
-        updateVwap(app.vwap, ts, mid, m.size);
-        updateFlow(app.flow, ts, m.side, m.size, m.inferred);
-        app.m1Agg.push(ts, mid, m.size);
-        app.m1Agg.tagCurrent({ vwap:app.vwap.vwap, vstd:app.vwap.std });
-        app.m5Agg.push(ts, mid, m.size);
-      },
+      onTrade:(m)=>ingestTrade(app, m),
       onStatus:(state,msg)=>{ app.connState=state; app.connMsg=msg; },
       // Backfill historis (baru berjalan utk kripto -- lihat connectBinanceDirect & fetchBinanceKlines).
       // Candle live yg mungkin sudah masuk lebih dulu tidak tertimpa (lihat makeAggregator.seed).
       onBackfill:(m1,m5)=>{
         if(m1 && m1.length) app.m1Agg.seed(m1);
         if(m5 && m5.length) app.m5Agg.seed(m5);
+        rebuildVwap(app);
         replayHistory(app);
       },
       // Backfill histori dari bridge.mjs (cTrader GetTrendbars, dikirim per-period -> dipanggil 2x).
@@ -2053,6 +2109,7 @@ function startConnections(){
         if(period==='M1') app.m1Agg.seed(candles);
         else if(period==='M5') app.m5Agg.seed(candles);
         else return;
+        rebuildVwap(app);
         replayHistory(app);
       },
     };
@@ -2997,17 +3054,26 @@ function btOpenMarket(sim, side, size, sl, tp, tag){
   return btOpenFilled(sim, side, size, fill, sl, tp, tag);
 }
 
+// Pesan galat bila harga order tidak sah thd harga sekarang (BUY limit di bawah ask, BUY stop di atas ask, dst.), selain itu null.
+function btOrderPriceError(sim, type, side, price){
+  const c = sim.candles[sim.idx];
+  if(!c) return 'Belum ada candle.';
+  const ask = c.c + btHS(sim), bid = c.c - btHS(sim);
+  if(side==='buy'  && type==='limit' && !(price<ask)) return 'BUY LIMIT harus di bawah harga sekarang.';
+  if(side==='buy'  && type==='stop'  && !(price>ask)) return 'BUY STOP harus di atas harga sekarang.';
+  if(side==='sell' && type==='limit' && !(price>bid)) return 'SELL LIMIT harus di atas harga sekarang.';
+  if(side==='sell' && type==='stop'  && !(price<bid)) return 'SELL STOP harus di bawah harga sekarang.';
+  return null;
+}
+
 // type: 'limit' | 'stop'. Level harus valid thd harga order. Order diisi saat candle berikutnya menyentuh.
 function btPlaceOrder(sim, type, side, size, price, sl, tp, tag){
   if(sim.finished) return { ok:false, msg:'Simulasi sudah selesai (data habis).' };
   const c = sim.candles[sim.idx];
   if(!c) return { ok:false, msg:'Belum ada candle.' };
   if(!(price>0)) return { ok:false, msg:'Harga order tidak valid.' };
-  const ask = c.c + btHS(sim), bid = c.c - btHS(sim);
-  if(side==='buy'  && type==='limit' && !(price<ask)) return { ok:false, msg:'BUY LIMIT harus di bawah harga sekarang.' };
-  if(side==='buy'  && type==='stop'  && !(price>ask)) return { ok:false, msg:'BUY STOP harus di atas harga sekarang.' };
-  if(side==='sell' && type==='limit' && !(price>bid)) return { ok:false, msg:'SELL LIMIT harus di atas harga sekarang.' };
-  if(side==='sell' && type==='stop'  && !(price<bid)) return { ok:false, msg:'SELL STOP harus di bawah harga sekarang.' };
+  const perr = btOrderPriceError(sim, type, side, price);
+  if(perr) return { ok:false, msg:perr };
   const err = btLevelError(side, price, sl, tp);
   if(err) return { ok:false, msg:err };
   if(size < sim.spec.minLot - 1e-12) return { ok:false, msg:'Ukuran minimum '+sim.spec.minLot+' lot.' };
@@ -3022,6 +3088,21 @@ function btCancelOrder(sim, id){
   const o = sim.orders.splice(k,1)[0];
   btLog(sim, 'CANCEL', 'Order #'+o.id+' dibatalkan');
   return true;
+}
+// Ubah order pending: price/sl/tp (undefined = tidak diubah, null = hapus SL/TP). Validasi sama dgn btPlaceOrder; harga order
+// hanya divalidasi thd harga sekarang bila memang diubah.
+function btModifyOrder(sim, id, patch){
+  const o = sim.orders.find(x=>x.id===id);
+  if(!o || !sim.candles[sim.idx]) return { ok:false, msg:'Order tidak ditemukan.' };
+  const priceChanged = patch.price!==undefined;
+  const price = priceChanged ? patch.price : o.price;
+  const sl = patch.sl!==undefined ? patch.sl : o.sl, tp = patch.tp!==undefined ? patch.tp : o.tp;
+  if(!(price>0)) return { ok:false, msg:'Harga order tidak valid.' };
+  const err = (priceChanged ? btOrderPriceError(sim, o.type, o.side, price) : null) || btLevelError(o.side, price, sl, tp);
+  if(err) return { ok:false, msg:err };
+  o.price = price; o.sl = sl; o.tp = tp;
+  btLog(sim, 'MODIFY', 'Order #'+id+' @ '+price.toFixed(sim.asset.dp)+' SL '+(sl!=null?sl.toFixed(sim.asset.dp):'-')+' TP '+(tp!=null?tp.toFixed(sim.asset.dp):'-'));
+  return { ok:true };
 }
 
 /* ---- penutupan posisi ---- */
@@ -3318,7 +3399,8 @@ function btBuildData(o){
 // tabel, dan kanvas yg diperbarui (tabel dilewati selama ada input di dalamnya yg sedang difokus).
 const BT = { sim:null, tab:'port', timer:null, acc:0, playing:false, busy:false, cancel:false,
   view:{ count:160 }, hoverIdx:null, inited:false, finishShown:false, chartRaf:false,
-  inds:[], indCache:new Map(), indRes:new Map(), indErr:{}, indErrSeen:new Set(), indOpen:new Set(), indPanel:false, indSearch:'' };
+  inds:[], indCache:new Map(), indRes:new Map(), indErr:{}, indErrSeen:new Set(), indOpen:new Set(), indPanel:false, indSearch:'',
+  handles:[], hot:[], scale:null, hoverKey:null, drag:null, plan:null, planSnap:null, toast:null };
 const btEl = id => document.getElementById(id);
 
 function btMoney(x, sign){
@@ -3417,6 +3499,11 @@ function btLoad(opts){
     start:data.start, tickSize:data.tickSize, cfg:su.cfg, settings:SETTINGS, source:data.source });
   BT.finishShown = false; BT.hoverIdx = null;
   BT.indCache.clear(); BT.indRes = new Map(); BT.indErr = {};
+  BT.plan = null; BT.planSnap = null; BT.drag = null; BT.toast = null; BT.handles = []; BT.hot = []; btPlanSync();
+  // mode Harga (SL/TP absolut) tidak berarti di data baru -> kembali ke bawaan (ATR/R)
+  if(btEl('btSlMode').value==='price'){ btEl('btSlMode').value = 'atr'; btEl('btSlVal').value = 1.5; }
+  if(btEl('btTpMode').value==='price'){ btEl('btTpMode').value = 'r'; btEl('btTpVal').value = 2; }
+  btSaveCfg();
   btEl('btOprice').value = '';
   if(data.source==='demo') btShowMsg('Memakai DATA DEMO sintetis (bukan pasar sungguhan) — hasil hanya utk mencoba fitur, TIDAK mencerminkan kinerja strategi pada pasar.', 'warn');
   else if(su.count>data.n) btShowMsg('Data tersedia hanya '+data.n+' candle uji (diminta '+su.count+').', 'info');
@@ -3545,6 +3632,7 @@ function btExecute(side){
     : btPlaceOrder(sim, p.otype, side, p.size, p.entry, p.sl, p.tp, 'MANUAL');
   if(!r.ok){ btOrderMsg(r.msg, 'bad'); return; }
   btOrderMsg(p.otype==='market' ? (side==='buy'?'BUY':'SELL')+' dieksekusi.' : 'Order '+p.otype.toUpperCase()+' dipasang.', 'ok');
+  btPlanEnd(true);   // garis rencana sudah jadi posisi/order (garisnya kini milik posisi/order itu); kolom Panel Order kembali
   btRender();
 }
 function btDoMoney(kind){
@@ -3564,7 +3652,8 @@ function btRender(){
   if(!o || o.style.display!=='flex') return;
   const sim = BT.sim;
   const dis = !sim || sim.finished;
-  ['btBuy','btSell','btCloseAllBtn','btCancelOrders','btDep','btWd'].forEach(id=>{ btEl(id).disabled = dis; });
+  ['btBuy','btSell','btCloseAllBtn','btCancelOrders','btDep','btWd','btPlanBuy','btPlanSell'].forEach(id=>{ btEl(id).disabled = dis; });
+  if(dis && BT.plan) btPlanEnd(true);
   btEl('btPlay').disabled = dis || BT.busy; btEl('btStep1').disabled = dis||BT.busy; btEl('btStep10').disabled = dis||BT.busy; btEl('btStep100').disabled = dis||BT.busy;
   btEl('btToEnd').disabled = !sim || (sim.finished && !BT.busy);
   btEl('btPriceWrap').style.display = btEl('btOtype').value==='market' ? 'none' : '';
@@ -3765,7 +3854,9 @@ function btDrawChart(){
   let hi = hi0, lo = lo0;
   const extend = v => { if(v!=null && isFinite(v) && v>lo0-rng && v<hi0+rng){ if(v>hi) hi = v; if(v<lo) lo = v; } };
   sim.positions.forEach(p=>{ extend(p.entry); extend(p.sl); extend(p.tp); });
-  sim.orders.forEach(o=>extend(o.price));
+  sim.orders.forEach(o=>{ extend(o.price); extend(o.sl); extend(o.tp); });   // SL/TP order pending kini juga digambar -> ikut skala
+  const planG = BT.plan ? btPlanGeometry(sim, BT.plan) : null;
+  if(planG){ extend(planG.entry); extend(planG.sl); extend(planG.tp); }
   act.forEach(a=>{
     if(a.def.pane!=='price' || !a.def.bounds || !a.res) return;
     try{ const b = a.def.bounds(a.res, a.inst.params, env); if(b){ extend(b.hi); extend(b.lo); } }catch(e){ fail(a, e); }
@@ -3773,6 +3864,7 @@ function btDrawChart(){
   const pad = (hi-lo)*0.06 || 1, top = hi+pad, bot = lo-pad;
   const y = px => plotH - (px-bot)/(top-bot)*plotH;
   env.y = y; env.y0 = 0; env.y1 = plotH; env.lo = bot; env.hi = top;
+  BT.scale = { top, bot, plotH, plotW };   // utk mengubah posisi pointer -> harga (btDragMove)
   // grid + label harga
   ctx.strokeStyle='#171C24'; ctx.lineWidth=1; ctx.font='10px monospace'; ctx.fillStyle='#4E5867';
   for(let i=0;i<=5;i++){ const py = plotH*i/5; ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(plotW,py); ctx.stroke(); ctx.fillText(btNum(top-(top-bot)*i/5, dp), plotW+4, py+3); }
@@ -3826,15 +3918,10 @@ function btDrawChart(){
     ctx.closePath(); ctx.fill();
     ctx.fillStyle = col; ctx.fillRect(x1-3, y(t.exit)-3, 6, 6);
   });
-  // posisi terbuka & order pending
+  // posisi terbuka, order pending & rencana order: garis SL/TP yg bisa digeser + label (6i)
   const hl = (px, color, dash)=>{ if(px==null||px<bot||px>top) return; ctx.strokeStyle=color; ctx.setLineDash(dash||[]); ctx.beginPath(); ctx.moveTo(0,y(px)); ctx.lineTo(plotW,y(px)); ctx.stroke(); ctx.setLineDash([]); };
-  const lbl = (px, text, color)=>{ ctx.fillStyle=color; ctx.font='10px monospace'; ctx.fillText(text, 4, y(px)-3); };
-  sim.positions.forEach(p=>{
-    hl(p.entry, '#4EA1F3'); lbl(p.entry, (p.side==='buy'?'BUY ':'SELL ')+p.size+' @ '+btNum(p.entry,dp), '#4EA1F3');
-    if(p.sl!=null){ hl(p.sl,'#E5484D',[5,3]); lbl(p.sl,'SL '+btNum(p.sl,dp),'#E5484D'); }
-    if(p.tp!=null){ hl(p.tp,'#3DDC84',[5,3]); lbl(p.tp,'TP '+btNum(p.tp,dp),'#3DDC84'); }
-  });
-  sim.orders.forEach(o=>{ hl(o.price,'#E8B94A',[6,3]); lbl(o.price, o.type.toUpperCase()+' '+(o.side==='buy'?'BUY':'SELL')+' '+o.size+' @ '+btNum(o.price,dp), '#E8B94A'); });
+  try{ btDrawLevels(ctx, { sim, plotW, plotH, y, dp, xc:xi, cw, idx:sim.idx, gutter:BT_GUTTER }); }
+  catch(e){ console.error('[level SL/TP]', e); }
   // harga terakhir
   const last = data[data.length-1];
   hl(last.c, 'rgba(231,236,242,.35)', [1,3]);
@@ -3908,7 +3995,7 @@ function openBtModal(){
   else btRender();
 }
 function closeBtModal(){
-  btStop(); BT.cancel = false;
+  btStop(); BT.cancel = false; BT.drag = null;
   btEl('btOverlay').style.display = 'none';
 }
 function btInitUi(){
@@ -3926,7 +4013,7 @@ function btInitUi(){
   BT_FIELDS.concat(BT_CHECKS, BT_EXTRA).forEach(id=>{
     const e = btEl(id); if(!e) return;
     e.addEventListener('change', ()=>{ btSaveCfg(); btApplyLiveCfg(); if(BT.sim) btRender(); });
-    e.addEventListener('input', ()=>{ if(/^(btOprice|btSizeVal|btSlVal|btTpVal|btSlMode|btTpMode|btSizeMode|btOtype)$/.test(id) && BT.sim) btEl('btPreview').innerHTML = BT.sim.finished ? '' : btPlanText('buy')+btPlanText('sell'); });
+    e.addEventListener('input', ()=>{ if(/^(btOprice|btSizeVal|btSlVal|btTpVal|btSlMode|btTpMode|btSizeMode|btOtype)$/.test(id) && BT.sim) { btEl('btPreview').innerHTML = BT.sim.finished ? '' : btPlanText('buy')+btPlanText('sell'); if(BT.plan) btDrawChartSoon(); } });
   });
   btEl('btSizeMode').addEventListener('change', ()=>{ const a = ASSETS.find(x=>x.sym===btEl('btPair').value); btEl('btSizeVal').step = btEl('btSizeMode').value==='lot' ? btAssetSpec(a).lotStep : 'any'; btEl('btSizeVal').value = btEl('btSizeMode').value==='lot' ? btAssetSpec(a).minLot*10 : 1; if(BT.sim) btRender(); });
   btEl('btLoad').addEventListener('click', ()=>btLoad({}));
@@ -3971,19 +4058,15 @@ function btInitUi(){
   // grafik: zoom (scroll) + info OHLC saat hover
   const cv = btEl('btChart');
   cv.addEventListener('wheel', e=>{ e.preventDefault(); BT.view.count = Math.round(clamp(BT.view.count*(e.deltaY>0?1.15:1/1.15), 20, 600)); btDrawChartSoon(); }, { passive:false });
-  cv.addEventListener('mousemove', e=>{
-    const sim = BT.sim; if(!sim) return;
-    const r = cv.getBoundingClientRect();
-    const endIdx = sim.idx+1, count = Math.max(20, Math.min(BT.view.count, endIdx)), startIdx = Math.max(0, endIdx-count);
-    const cw = (cv.clientWidth-66)/(count+3);
-    const idx = startIdx + Math.floor((e.clientX-r.left)/cw);
-    if(idx>=startIdx && idx<endIdx){
-      BT.hoverIdx = idx; const c = sim.candles[idx], dp = sim.asset.dp;
-      btEl('btHover').textContent = btDT(c.t)+'  O '+btNum(c.o,dp)+'  H '+btNum(c.h,dp)+'  L '+btNum(c.l,dp)+'  C '+btNum(c.c,dp);
-    } else { BT.hoverIdx = null; btEl('btHover').textContent = ''; }
-    btDrawChartSoon();
-  });
-  cv.addEventListener('mouseleave', ()=>{ BT.hoverIdx = null; btEl('btHover').textContent=''; btDrawChartSoon(); });
+  // hover (info OHLC + sorot garis), geser garis SL/TP/entri, klik ✕ / +SL / +TP -- lihat 6i
+  cv.addEventListener('pointermove', btOnPointerMove);
+  cv.addEventListener('pointerdown', btOnPointerDown);
+  cv.addEventListener('pointerup', btOnPointerUp);
+  cv.addEventListener('pointercancel', btOnPointerCancel);
+  cv.addEventListener('mouseleave', ()=>{ if(BT.drag) return; BT.hoverIdx = null; BT.hoverKey = null; btEl('btHover').textContent=''; cv.style.cursor = 'crosshair'; btDrawChartSoon(); });
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && BT.drag) btDragEnd(false); });
+  btEl('btPlanBuy').addEventListener('click', ()=>btPlanToggle('buy'));
+  btEl('btPlanSell').addEventListener('click', ()=>btPlanToggle('sell'));
   window.addEventListener('resize', ()=>{ if(btEl('btOverlay').style.display==='flex'){ btDrawChartSoon(); if(BT.tab==='eq') btDrawEquity(); } });
   btIndInit();
 }
@@ -4774,6 +4857,422 @@ function btIndInit(){
   btIndRenderLegend(); btIndRenderPanel();
 }
 
+/* ============================== 6i. BACKTEST: SL/TP DI CHART (garis yang bisa digeser) ============================== */
+// SL/TP posisi terbuka dan order pending digambar sbg garis yg bisa DIGESER langsung di chart (pointer: mouse/sentuh/pena;
+// pemanggilan lewat btOnPointer*). Label (pil) tiap garis menampilkan harga, P/L kotor bila level itu kena, dan kelipatan R;
+// ✕ di label = hapus level (pada order: batalkan), "+SL"/"+TP" = tambah level yg belum ada. Tombol "📐 Rencana BUY/SELL" di
+// Panel Order menampilkan garis entri/SL/TP utk order BERIKUTNYA yg juga bisa digeser -- hasilnya ditulis ke kolom Panel
+// Order (mode Harga) lalu BUY/SELL dieksekusi seperti biasa. Validasi level memakai aturan simulator yg sama persis
+// (btLevelError / btOrderPriceError / btModifyPosition / btModifyOrder), jadi geseran yg salah sisi ditolak, bukan disimpan.
+// Pembangun level, validasi, hit-test, dan commit terpisah dari event DOM supaya bisa diuji di Node.
+const BT_HIT_PX = 6;                    // toleransi klik pada garis (px)
+const BT_PILL_H = 15, BT_PILL_GAP = 2;  // tinggi label & jarak antar-label
+const BT_LV_COLOR = { entry:'#4EA1F3', sl:'#E5484D', tp:'#3DDC84', order:'#E8B94A', plan:'#B28CFF', planSl:'#FF7A7F', planTp:'#6FE3A1' };
+
+function btFmtR(r){ return (r>0 ? '+' : '')+r.toFixed(1)+'R'; }
+// P/L kotor bila `size` lot dari `entry` ditutup di `price`; r = kelipatan thd risiko awal `riskRef` ($).
+function btLevelInfo(sim, side, entry, size, price, riskRef){
+  const pnl = btPnl(sim, side, entry, price, size);
+  return { pnl, r: riskRef>0 ? pnl/riskRef : null };
+}
+function btSegsPnl(label, price, dp, li){
+  return [ { t:label+' '+btNum(price, dp)+'  ', c:'#E7ECF2' },
+           { t:btMoney(li.pnl, true)+(li.r!=null ? ' · '+btFmtR(li.r) : ''), c: li.pnl>=0 ? '#3DDC84' : '#E5484D' } ];
+}
+
+// Ukuran lot rencana (tanpa mensyaratkan input lain valid) -- null bila belum bisa dihitung.
+function btPlanSize(sim, entry, sl){
+  const sizeMode = btEl('btSizeMode').value, sv = parseFloat(btEl('btSizeVal').value);
+  if(!(sv>0)) return null;
+  let size = null;
+  if(sizeMode==='lot') size = btRoundLot(sim, sv);
+  else if(sl!=null) size = btSizeForRisk(sim, btAccount(sim).equity*sv/100, entry, sl);
+  return size!=null && size >= sim.spec.minLot - 1e-12 ? size : null;
+}
+// Geometri rencana order utk `side`: dihitung dari Panel Order apa adanya (mode ATR/R/Harga). Tidak mensyaratkan semua
+// input valid -- level yg belum ada = null (dan muncul chip "+SL"/"+TP").
+function btPlanGeometry(sim, side){
+  const c = sim.candles[sim.idx];
+  if(!c || sim.finished) return null;
+  const otype = btEl('btOtype').value;
+  let entry = btEntryFill(sim, side, c.c);
+  if(otype!=='market'){ const v = parseFloat(btEl('btOprice').value); if(v>0) entry = v; }
+  const slMode = btEl('btSlMode').value, slVal = parseFloat(btEl('btSlVal').value);
+  let sl = null;
+  if(slMode==='atr' && slVal>0){ const atr = btAtrNow(sim); if(atr>0) sl = side==='buy' ? entry - slVal*atr : entry + slVal*atr; }
+  else if(slMode==='price' && slVal>0) sl = slVal;
+  if(sl!=null) sl = btTickRound(sim, sl);
+  const tpMode = btEl('btTpMode').value, tpVal = parseFloat(btEl('btTpVal').value);
+  let tp = null;
+  if(tpMode==='r' && tpVal>0 && sl!=null){ const d = Math.abs(entry - sl); tp = side==='buy' ? entry + tpVal*d : entry - tpVal*d; }
+  else if(tpMode==='price' && tpVal>0) tp = tpVal;
+  if(tp!=null) tp = btTickRound(sim, tp);
+  return { side, otype, entry, sl, tp, size:btPlanSize(sim, entry, sl) };
+}
+
+// Daftar garis + chip "tambah level" utk digambar. override = {key, price} (garis yg sedang digeser: teksnya ikut berubah).
+function btBuildLevels(sim, planG, override){
+  const dp = sim.asset.dp, lines = [], chips = [], c = sim.candles[sim.idx];
+  if(!c) return { lines, chips };
+  const ov = (key, price)=> (override && override.key===key) ? override.price : price;
+  const hs = btHS(sim);
+  const lvl = (key, obj, id, part, side, price, entry, size, riskRef, colors, extra, prefix)=>Object.assign({
+    key, obj, id, part, side, price, color:colors[part], dash:[5,3], drag:true, remove:true,
+    segs: btSegsPnl((prefix||'')+(part==='sl' ? 'SL' : 'TP'), price, dp, btLevelInfo(sim, side, entry, size, price, riskRef)) }, extra||{});
+  // ---- posisi terbuka ----
+  sim.positions.forEach(p=>{
+    const mark = p.side==='buy' ? c.c - hs : c.c + hs, kEntry = 'pos:'+p.id+':entry';
+    const riskRef = p.sl0!=null ? Math.abs(btPnl(sim, p.side, p.entry, p.sl0, p.size)) : 0;
+    const fl = btPnl(sim, p.side, p.entry, mark, p.size);
+    lines.push({ key:kEntry, obj:'pos', id:p.id, part:'entry', side:p.side, price:p.entry, color:BT_LV_COLOR.entry, dash:[], drag:false, remove:false,
+      segs:[ { t:(p.side==='buy'?'BUY ':'SELL ')+p.size+' @ '+btNum(p.entry, dp)+'  ', c:'#E7ECF2' }, { t:btMoney(fl, true), c: fl>=0 ? '#3DDC84' : '#E5484D' } ] });
+    ['sl','tp'].forEach(part=>{
+      const key = 'pos:'+p.id+':'+part, price = ov(key, p[part]);
+      if(price==null) chips.push({ obj:'pos', id:p.id, part, anchor:kEntry, side:p.side });
+      else lines.push(lvl(key, 'pos', p.id, part, p.side, price, p.entry, p.size, riskRef, BT_LV_COLOR));
+    });
+  });
+  // ---- order pending ----
+  sim.orders.forEach(o=>{
+    const kPrice = 'ord:'+o.id+':price', op = ov(kPrice, o.price);
+    lines.push({ key:kPrice, obj:'ord', id:o.id, part:'price', side:o.side, price:op, color:BT_LV_COLOR.order, dash:[6,3], drag:true, remove:true,
+      segs:[ { t:o.type.toUpperCase()+' '+(o.side==='buy'?'BUY':'SELL')+' '+o.size+' @ '+btNum(op, dp), c:'#E7ECF2' } ] });
+    const slp = ov('ord:'+o.id+':sl', o.sl), riskRef = slp!=null ? Math.abs(btPnl(sim, o.side, op, slp, o.size)) : 0;
+    ['sl','tp'].forEach(part=>{
+      const key = 'ord:'+o.id+':'+part, price = ov(key, o[part]);
+      if(price==null) chips.push({ obj:'ord', id:o.id, part, anchor:kPrice, side:o.side });
+      else lines.push(lvl(key, 'ord', o.id, part, o.side, price, op, o.size, riskRef, BT_LV_COLOR));
+    });
+  });
+  // ---- rencana order berikutnya ----
+  if(planG){
+    const s = planG.side, kEntry = 'plan:'+s+':entry', ent = ov(kEntry, planG.entry);
+    const slp = ov('plan:'+s+':sl', planG.sl), tpp = ov('plan:'+s+':tp', planG.tp);
+    const riskRef = slp!=null ? Math.abs(btPnl(sim, s, ent, slp, planG.size || sim.spec.minLot)) : 0;
+    const sizeTxt = planG.size ? ' '+planG.size+' lot' : '';
+    lines.push({ key:kEntry, obj:'plan', id:s, part:'entry', side:s, price:ent, color:BT_LV_COLOR.plan, dash:[2,3], drag:true, remove:false,
+      segs:[ { t:'RENCANA '+(s==='buy'?'BUY':'SELL')+sizeTxt+' @ '+btNum(ent, dp)+(planG.otype!=='market' ? ' ('+planG.otype+')' : ''), c:'#E7ECF2' } ], entryRef:ent });
+    const colors = { sl:BT_LV_COLOR.planSl, tp:BT_LV_COLOR.planTp };
+    [ ['sl', slp], ['tp', tpp] ].forEach(([part, price])=>{
+      const key = 'plan:'+s+':'+part;
+      if(price==null) chips.push({ obj:'plan', id:s, part, anchor:kEntry, side:s });
+      else lines.push(lvl(key, 'plan', s, part, s, price, ent, planG.size || sim.spec.minLot, riskRef, colors, { dash:[3,3], entryRef:ent }, 'RENCANA '));
+    });
+  }
+  return { lines, chips };
+}
+
+/* ---- validasi, commit ---- */
+// Tipe order hasil menggeser garis entri rencana: BUY di bawah ask = limit, di atas = stop; SELL kebalikannya.
+function btPlanEntryType(sim, side, price){
+  const c = sim.candles[sim.idx], hs = btHS(sim), half = sim.tick/2;
+  const ask = c.c + hs, bid = c.c - hs;
+  if(side==='buy')  return price < ask - half ? 'limit' : price > ask + half ? 'stop' : 'market';
+  return price > bid + half ? 'limit' : price < bid - half ? 'stop' : 'market';
+}
+// {ok:true} atau {ok:false,msg}. `hd` = handle ({obj,id,part,side,entryRef}).
+function btValidateMove(sim, hd, price){
+  if(!(price>0)) return { ok:false, msg:'Harga tidak valid.' };
+  const c = sim.candles[sim.idx];
+  if(!c) return { ok:false, msg:'Belum ada candle.' };
+  const lv = (side, ref, part)=>{ const e = part==='sl' ? btLevelError(side, ref, price, null) : btLevelError(side, ref, null, price); return e ? { ok:false, msg:e } : { ok:true }; };
+  if(hd.obj==='pos'){
+    const p = sim.positions.find(x=>x.id===hd.id);
+    if(!p) return { ok:false, msg:'Posisi sudah tidak ada.' };
+    return lv(p.side, p.side==='buy' ? c.c - btHS(sim) : c.c + btHS(sim), hd.part);   // ref = sisi penutup, seperti btModifyPosition
+  }
+  if(hd.obj==='ord'){
+    const o = sim.orders.find(x=>x.id===hd.id);
+    if(!o) return { ok:false, msg:'Order sudah tidak ada.' };
+    if(hd.part==='price'){
+      const e = btOrderPriceError(sim, o.type, o.side, price) || btLevelError(o.side, price, o.sl, o.tp);
+      return e ? { ok:false, msg:e } : { ok:true };
+    }
+    return lv(o.side, o.price, hd.part);
+  }
+  if(hd.obj==='plan'){
+    const g = btPlanGeometry(sim, hd.side);
+    if(!g) return { ok:false, msg:'Rencana tidak tersedia.' };
+    if(hd.part==='entry'){
+      // mode ATR/R: SL/TP ikut bergeser bersama entri (selalu konsisten); hanya level mode Harga (absolut) yg harus tetap valid
+      const slAbs = btEl('btSlMode').value==='price' ? g.sl : null, tpAbs = btEl('btTpMode').value==='price' ? g.tp : null;
+      const e = btLevelError(hd.side, price, slAbs, tpAbs);
+      return e ? { ok:false, msg:e+' (geser SL/TP dulu atau hapus)' } : { ok:true };
+    }
+    return lv(hd.side, g.entry, hd.part);
+  }
+  return { ok:false, msg:'Level tidak dikenal.' };
+}
+// Tulis hasil menggeser/menambah/menghapus garis RENCANA ke kolom Panel Order (price===null: matikan SL/TP). Nilai kolom
+// SEBELUM diubah garis rencana dicatat (BT.planSnap) supaya btPlanEnd(true) bisa mengembalikannya sesudah order dieksekusi.
+function btPlanApply(side, part, price){
+  const sim = BT.sim, snap = BT.planSnap || (BT.planSnap = {});
+  const set = (id, v)=>{ if(!(id in snap)) snap[id] = btEl(id).value; btEl(id).value = v; };
+  if(part==='sl'){ if(price===null) set('btSlMode','none'); else { set('btSlMode','price'); set('btSlVal', price); } }
+  else if(part==='tp'){ if(price===null) set('btTpMode','none'); else { set('btTpMode','price'); set('btTpVal', price); } }
+  else if(part==='entry'){
+    const t = btPlanEntryType(sim, side, price);
+    set('btOtype', t); set('btOprice', t==='market' ? '' : price);
+  }
+  btSaveCfg();
+  return { ok:true };
+}
+// Terapkan level (price===null = hapus) ke objek sasaran; mengembalikan {ok,msg}.
+function btApplyLevel(sim, obj, id, part, price, side){
+  if(obj==='pos'){
+    const p = sim.positions.find(x=>x.id===id);
+    if(!p) return { ok:false, msg:'Posisi sudah tidak ada.' };
+    return btModifyPosition(sim, id, part==='sl' ? price : p.sl, part==='tp' ? price : p.tp);
+  }
+  if(obj==='ord'){
+    if(part==='price'){
+      if(price===null) return btCancelOrder(sim, id) ? { ok:true } : { ok:false, msg:'Order sudah tidak ada.' };
+      return btModifyOrder(sim, id, { price });
+    }
+    return btModifyOrder(sim, id, part==='sl' ? { sl:price } : { tp:price });
+  }
+  if(obj==='plan') return btPlanApply(side||id, part, price);
+  return { ok:false, msg:'Level tidak dikenal.' };
+}
+function btCommitMove(sim, hd, price){
+  const v = btValidateMove(sim, hd, price);
+  if(!v.ok) return v;
+  return btApplyLevel(sim, hd.obj, hd.id, hd.part, price, hd.side);
+}
+// Level bawaan utk chip "+SL"/"+TP": SL = k x ATR (k dari Panel Order bila mode ATR, selain itu 1.5), TP = m x R (m dari
+// Panel Order bila mode R, selain itu 2) dari harga acuan `ref` (posisi: harga penutup saat ini; order/rencana: harga entri).
+function btDefaultLevel(sim, side, ref, part, sl, opts){
+  const atr = btAtrNow(sim) || ref*0.001, k = (opts && opts.slK>0) ? opts.slK : 1.5, m = (opts && opts.tpR>0) ? opts.tpR : 2;
+  if(part==='sl') return btTickRound(sim, side==='buy' ? ref - k*atr : ref + k*atr);
+  const dist = sl!=null ? Math.abs(ref - sl) : k*atr;
+  return btTickRound(sim, side==='buy' ? ref + m*dist : ref - m*dist);
+}
+function btAddLevel(sim, chip){
+  const c = sim.candles[sim.idx], hs = btHS(sim);
+  if(!c) return { ok:false, msg:'Belum ada candle.' };
+  const slK = btEl('btSlMode').value==='atr' ? parseFloat(btEl('btSlVal').value) : null;
+  const tpR = btEl('btTpMode').value==='r' ? parseFloat(btEl('btTpVal').value) : null;
+  let ref, slNow = null, size = null;
+  if(chip.obj==='pos'){ const p = sim.positions.find(x=>x.id===chip.id); if(!p) return { ok:false, msg:'Posisi sudah tidak ada.' }; ref = p.side==='buy' ? c.c - hs : c.c + hs; slNow = p.sl; }
+  else if(chip.obj==='ord'){ const o = sim.orders.find(x=>x.id===chip.id); if(!o) return { ok:false, msg:'Order sudah tidak ada.' }; ref = o.price; slNow = o.sl; }
+  else { const g = btPlanGeometry(sim, chip.side); if(!g) return { ok:false, msg:'Rencana tidak tersedia.' }; ref = g.entry; slNow = g.sl; }
+  const price = btDefaultLevel(sim, chip.side, ref, chip.part, slNow, { slK, tpR });
+  const v = btValidateMove(sim, { obj:chip.obj, id:chip.id, part:chip.part, side:chip.side }, price);
+  if(!v.ok) return v;
+  return btApplyLevel(sim, chip.obj, chip.id, chip.part, price, chip.side);
+}
+
+/* ---- gambar ---- */
+function btRoundRect(g, x, y, w, h, r){
+  g.beginPath();
+  g.moveTo(x+r, y); g.lineTo(x+w-r, y); g.arcTo(x+w, y, x+w, y+r, r);
+  g.lineTo(x+w, y+h-r); g.arcTo(x+w, y+h, x+w-r, y+h, r);
+  g.lineTo(x+r, y+h); g.arcTo(x, y+h, x, y+h-r, r);
+  g.lineTo(x, y+r); g.arcTo(x, y, x+r, y, r); g.closePath();
+}
+// Susun posisi vertikal label agar tidak bertumpuk (urut menurut garis, dorong turun, tarik naik bila lewat dasar panel).
+function btLayoutPills(items, plotH){
+  const arr = items.slice().sort((a, b)=>a.ly - b.ly);
+  arr.forEach(it=>{ it.py = it.ly - BT_PILL_H/2; });
+  const step = BT_PILL_H + BT_PILL_GAP;
+  for(let k=1;k<arr.length;k++) if(arr[k].py < arr[k-1].py + step) arr[k].py = arr[k-1].py + step;
+  for(let k=arr.length-1;k>=0;k--){ const lim = k===arr.length-1 ? plotH - BT_PILL_H - 1 : arr[k+1].py - step; if(arr[k].py > lim) arr[k].py = lim; }
+  arr.forEach(it=>{ if(it.py < 1) it.py = 1; });
+}
+function btDrawPill(g, x, py, segs, border, o){
+  g.font = '10px monospace'; g.textAlign = 'left';
+  const padX = 5, widths = segs.map(s=>indTextW(g, s.t));
+  const w = padX*2 + widths.reduce((a, b)=>a + b, 0) + (o.remove ? 14 : 0);
+  g.fillStyle = 'rgba(10,13,18,.9)'; btRoundRect(g, x, py, w, BT_PILL_H, 4); g.fill();
+  g.strokeStyle = border; g.lineWidth = o.hot ? 2 : 1; g.setLineDash([]); btRoundRect(g, x, py, w, BT_PILL_H, 4); g.stroke(); g.lineWidth = 1;
+  let tx = x + padX; const ty = py + BT_PILL_H/2 + 3.5;
+  segs.forEach((s, k)=>{ g.fillStyle = s.c; g.fillText(s.t, tx, ty); tx += widths[k]; });
+  if(o.remove){ g.fillStyle = o.hotRemove ? '#E7ECF2' : '#8893A3'; g.fillText('✕', x + w - 13, ty); }
+  return { x, y:py, w, h:BT_PILL_H, removeRect: o.remove ? { x:x + w - 15, y:py, w:15, h:BT_PILL_H } : null };
+}
+
+// Gambar semua garis level + label + chip; mendaftarkan handle (BT.handles) & area klik (BT.hot) utk interaksi.
+// env: { plotW, plotH, y(price), dp, sim, xc(i), cw, idx }.
+function btDrawLevels(g, env){
+  const sim = env.sim, y = env.y, drag = BT.drag, planG = BT.plan ? btPlanGeometry(sim, BT.plan) : null;
+  const built = btBuildLevels(sim, planG, drag ? { key:drag.key, price:drag.price } : null);
+  BT.handles = []; BT.hot = [];
+  const vis = built.lines.filter(ln=>{ ln.ly = y(ln.price); return isFinite(ln.ly) && ln.ly >= -2 && ln.ly <= env.plotH + 2; });
+  g.save(); g.beginPath(); g.rect(0, 0, env.plotW, env.plotH); g.clip();
+  // zona risiko/imbalan rencana (seperti alat posisi di TradingView), hanya di dekat candle terakhir
+  if(planG){
+    const pe = vis.find(l=>l.key==='plan:'+planG.side+':entry');
+    if(pe){
+      const x0 = Math.max(0, env.xc(env.idx) - 8*env.cw);
+      [ ['sl', 'rgba(229,72,77,.10)'], ['tp', 'rgba(61,220,132,.10)'] ].forEach(([part, fill])=>{
+        const ln = vis.find(l=>l.key==='plan:'+planG.side+':'+part); if(!ln) return;
+        g.fillStyle = fill; g.fillRect(x0, Math.min(pe.ly, ln.ly), env.plotW - x0, Math.abs(ln.ly - pe.ly));
+      });
+    }
+  }
+  // garis
+  vis.forEach(ln=>{
+    const dragging = !!drag && drag.key===ln.key, hot = dragging || BT.hoverKey===ln.key;
+    if(dragging){
+      const oy = y(drag.orig);
+      g.strokeStyle = 'rgba(231,236,242,.35)'; g.lineWidth = 1; g.setLineDash([2,4]); g.beginPath(); g.moveTo(0, oy); g.lineTo(env.plotW, oy); g.stroke();   // jejak posisi awal
+    }
+    g.strokeStyle = dragging && !drag.valid ? '#8893A3' : ln.color; g.lineWidth = hot ? 2 : 1; g.setLineDash(ln.dash);
+    g.beginPath(); g.moveTo(0, ln.ly); g.lineTo(env.plotW, ln.ly); g.stroke();
+  });
+  g.setLineDash([]); g.lineWidth = 1;
+  // label
+  btLayoutPills(vis, env.plotH);
+  vis.forEach(ln=>{
+    const dragging = !!drag && drag.key===ln.key, hot = dragging || BT.hoverKey===ln.key;
+    const segs = ln.segs.slice();
+    if(dragging && !drag.valid && drag.msg) segs.push({ t:'  ✕ '+drag.msg, c:'#E5484D' });
+    const hotRemove = BT.hoverKey==='rm:'+ln.key;
+    const pill = btDrawPill(g, 6, ln.py, segs, dragging && !drag.valid ? '#E5484D' : ln.color, { remove:ln.remove && !dragging, hot, hotRemove });
+    ln.pill = pill;
+    BT.handles.push({ key:ln.key, obj:ln.obj, id:ln.id, part:ln.part, side:ln.side, price:ln.price, y:ln.ly, drag:ln.drag, remove:ln.remove,
+      pill, entryRef:ln.entryRef });
+    if(pill.removeRect) BT.hot.push({ x:pill.removeRect.x, y:pill.removeRect.y, w:pill.removeRect.w, h:pill.removeRect.h, act:'remove', key:'rm:'+ln.key,
+      obj:ln.obj, id:ln.id, part:ln.part, side:ln.side });
+  });
+  // chip "+SL" / "+TP" di samping label entri
+  const nextX = {};
+  built.chips.forEach(ch=>{
+    const anchor = vis.find(l=>l.key===ch.anchor); if(!anchor || !anchor.pill || (drag && drag.moved)) return;
+    const txt = ch.part==='sl' ? '+SL' : '+TP', col = ch.part==='sl' ? BT_LV_COLOR.sl : BT_LV_COLOR.tp;
+    g.font = '10px monospace';
+    const x = nextX[ch.anchor]!=null ? nextX[ch.anchor] : anchor.pill.x + anchor.pill.w + 4, w = indTextW(g, txt) + 10, key = 'add:'+ch.anchor+':'+ch.part;
+    g.fillStyle = 'rgba(10,13,18,.9)'; btRoundRect(g, x, anchor.pill.y, w, BT_PILL_H, 4); g.fill();
+    g.strokeStyle = col; g.lineWidth = BT.hoverKey===key ? 2 : 1; g.setLineDash([3,2]); btRoundRect(g, x, anchor.pill.y, w, BT_PILL_H, 4); g.stroke(); g.setLineDash([]); g.lineWidth = 1;
+    g.fillStyle = col; g.fillText(txt, x + 5, anchor.pill.y + BT_PILL_H/2 + 3.5);
+    BT.hot.push({ x, y:anchor.pill.y, w, h:BT_PILL_H, act:'add', key, obj:ch.obj, id:ch.id, part:ch.part, side:ch.side });
+    nextX[ch.anchor] = x + w + 4;
+  });
+  g.restore();
+  // etiket harga di sumbu kanan utk garis yg di-hover / digeser; pesan singkat (toast) di tengah atas
+  const gut = env.gutter || 66;
+  vis.forEach(ln=>{
+    if(!((drag && drag.key===ln.key) || BT.hoverKey===ln.key)) return;
+    g.fillStyle = drag && drag.key===ln.key && !drag.valid ? '#8893A3' : ln.color; g.fillRect(env.plotW + 1, ln.ly - 8, gut - 2, 16);
+    g.fillStyle = '#06100A'; g.font = 'bold 10px monospace'; g.textAlign = 'left'; g.fillText(btNum(ln.price, env.dp), env.plotW + 4, ln.ly + 3);
+  });
+  const t = BT.toast;
+  if(t && t.until > Date.now()){
+    g.font = '11px monospace'; g.textAlign = 'left';
+    const w = indTextW(g, t.text) + 20, x = Math.max(4, (env.plotW - w)/2);
+    g.fillStyle = 'rgba(10,13,18,.94)'; btRoundRect(g, x, 8, w, 22, 5); g.fill();
+    g.strokeStyle = t.kind==='bad' ? '#E5484D' : '#3DDC84'; g.lineWidth = 1; btRoundRect(g, x, 8, w, 22, 5); g.stroke();
+    g.fillStyle = t.kind==='bad' ? '#FF9A9D' : '#9CF0C0'; g.fillText(t.text, x + 10, 23);
+  }
+}
+function btToast(text, kind){
+  BT.toast = { text, kind:kind||'bad', until:Date.now() + 3500 };
+  clearTimeout(BT._toastT); BT._toastT = setTimeout(btDrawChartSoon, 3600);
+  btDrawChartSoon();
+}
+
+/* ---- interaksi pointer ---- */
+function btInRect(p, r){ return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h; }
+// p = {x,y} (px CSS relatif kanvas). Prioritas: tombol (✕, +SL/+TP) > label yg bisa digeser > garis terdekat dalam BT_HIT_PX.
+function btHitTest(p){
+  for(const h of BT.hot) if(btInRect(p, h)) return { type:'hot', hot:h };
+  for(const hd of BT.handles) if(hd.drag && hd.pill && btInRect(p, hd.pill)) return { type:'handle', handle:hd };
+  if(!BT.scale || p.x < 0 || p.x > BT.scale.plotW) return null;
+  let best = null, bd = BT_HIT_PX + 0.001;
+  for(const hd of BT.handles){ if(!hd.drag) continue; const d = Math.abs(p.y - hd.y); if(d <= bd){ best = hd; bd = d; } }
+  return best ? { type:'handle', handle:best } : null;
+}
+function btCvXY(e){ const r = btEl('btChart').getBoundingClientRect(); return { x:e.clientX - r.left, y:e.clientY - r.top }; }
+function btHoverInfo(p){
+  const sim = BT.sim, cv = btEl('btChart');
+  const endIdx = sim.idx+1, count = Math.max(20, Math.min(BT.view.count, endIdx)), startIdx = Math.max(0, endIdx-count);
+  const cw = (cv.clientWidth-66)/(count+3);
+  const idx = startIdx + Math.floor(p.x/cw);
+  if(idx>=startIdx && idx<endIdx){
+    BT.hoverIdx = idx; const c = sim.candles[idx], dp = sim.asset.dp;
+    btEl('btHover').textContent = btDT(c.t)+'  O '+btNum(c.o,dp)+'  H '+btNum(c.h,dp)+'  L '+btNum(c.l,dp)+'  C '+btNum(c.c,dp);
+  } else { BT.hoverIdx = null; btEl('btHover').textContent = ''; }
+}
+function btOnPointerMove(e){
+  const sim = BT.sim; if(!sim) return;
+  const p = btCvXY(e), cv = btEl('btChart');
+  if(BT.drag){ btDragMove(p); return; }
+  btHoverInfo(p);
+  const hit = btHitTest(p);
+  const key = hit ? (hit.type==='hot' ? hit.hot.key : hit.handle.key) : null;
+  cv.style.cursor = !hit ? 'crosshair' : hit.type==='hot' ? 'pointer' : 'ns-resize';
+  BT.hoverKey = key;
+  btDrawChartSoon();
+}
+function btDragMove(p){
+  const d = BT.drag, S = BT.scale; if(!d || !S) return;
+  if(Math.abs(p.y - d.y0) > 2) d.moved = true;
+  const yLine = clamp(d.line0 + (p.y - d.y0), 0, S.plotH);
+  d.price = btTickRound(BT.sim, S.bot + (S.plotH - yLine)/S.plotH*(S.top - S.bot));
+  const v = btValidateMove(BT.sim, d.handle, d.price);
+  d.valid = v.ok; d.msg = v.msg || '';
+  btDrawChartSoon();
+}
+function btOnPointerDown(e){
+  if(e.button!==0 || !BT.sim || BT.busy || BT.sim.finished) return;
+  const p = btCvXY(e), hit = btHitTest(p);
+  if(!hit) return;
+  e.preventDefault();
+  if(hit.type==='hot'){ btRunHot(hit.hot); return; }
+  const hd = hit.handle;
+  BT.drag = { key:hd.key, handle:hd, y0:p.y, line0:hd.y, price:hd.price, orig:hd.price, valid:true, msg:'', moved:false, pointerId:e.pointerId, wasPlaying:BT.playing };
+  if(BT.playing){ btStop(); BT.cancel = false; btEl('btPlay').textContent = '▶ Play'; }   // jeda selama menggeser; lanjut saat dilepas
+  try{ btEl('btChart').setPointerCapture(e.pointerId); }catch(err){}
+  btEl('btChart').style.cursor = 'ns-resize';
+  btDrawChartSoon();
+}
+function btDragEnd(commit){
+  const d = BT.drag; if(!d) return null;
+  BT.drag = null;
+  const cv = btEl('btChart');
+  try{ cv.releasePointerCapture(d.pointerId); }catch(err){}
+  cv.style.cursor = 'crosshair';
+  let res = null;
+  if(commit && d.moved && d.price!==d.orig){
+    res = btCommitMove(BT.sim, d.handle, d.price);
+    if(!res.ok) btToast(res.msg, 'bad');
+  }
+  if(d.wasPlaying && BT.sim && !BT.sim.finished) btPlayToggle();
+  btRender(); btDrawChartSoon();
+  return res;
+}
+function btOnPointerUp(){ btDragEnd(true); }
+function btOnPointerCancel(){ btDragEnd(false); }
+// ✕ (hapus level / batalkan order) dan +SL/+TP (tambah level)
+function btRunHot(h){
+  const sim = BT.sim; let r;
+  if(h.act==='remove') r = btApplyLevel(sim, h.obj, h.id, h.part, null, h.side);
+  else r = btAddLevel(sim, { obj:h.obj, id:h.id, part:h.part, side:h.side });
+  if(r && !r.ok) btToast(r.msg, 'bad');
+  btRender(); btDrawChartSoon();
+}
+
+/* ---- tombol "📐 Rencana" (Panel Order) ---- */
+function btPlanSync(){
+  ['buy','sell'].forEach(s=>{ const b = btEl(s==='buy' ? 'btPlanBuy' : 'btPlanSell'); if(b) b.classList.toggle('on', BT.plan===s); });
+  const hint = btEl('btPlanHint'); if(hint) hint.style.display = BT.plan ? '' : 'none';
+}
+// Akhiri rencana. restore=true: kolom Panel Order yg tadinya diubah garis rencana dikembalikan (mode Harga hasil geseran
+// itu hanya berlaku utk order yg direncanakan -- jangan jadi level basi utk order berikutnya).
+function btPlanEnd(restore){
+  const snap = BT.planSnap;
+  BT.planSnap = null; BT.plan = null;
+  if(restore && snap){ Object.keys(snap).forEach(id=>{ const e = btEl(id); if(e) e.value = snap[id]; }); btSaveCfg(); }
+  btPlanSync();
+}
+// Klik lagi tombol yg sama = sembunyikan garis rencana (nilai yg sudah diatur di Panel Order dibiarkan); ganti sisi
+// (BUY <-> SELL) = batalkan perubahan rencana lama (SL/TP absolutnya tidak berlaku utk sisi sebaliknya).
+function btPlanToggle(side){
+  if(BT.plan===side) btPlanEnd(false);
+  else { if(BT.plan) btPlanEnd(true); BT.plan = side; BT.planSnap = null; }
+  btPlanSync(); btRender(); btDrawChartSoon();
+}
+
 /* ================================ 7. RENDER ================================ */
 
 // Jeda kosong di kanan chart (~2cm @ 96 CSS px/inch) -- dipakai bareng oleh drawChart (biar
@@ -4896,8 +5395,8 @@ const DRAG = { active:false, startX:0, startEndIdx:0, startTotal:0 };
 // Redraw kanvas SENDIRIAN (bukan seluruh panel) di setiap event mouse lewat rAF supaya gesernya
 // mengikuti kursor secara real-time, terpisah dari siklus refresh data yang tetap 1 detik.
 let chartRafPending = false;
-// Seri candle utk chart sesuai timeframe aktif (M1/M5). M5 tidak punya field vwap/vstd (hanya diisi
-// utk candle M1), jadi kurva VWAP otomatis tidak tergambar di M5 -- level/zona/FVG tetap sama.
+// Seri candle utk chart sesuai timeframe aktif (M1/M5). Candle M1 dan M5 sama-sama membawa vwap/vstd (histori lewat
+// rebuildVwap, live lewat ingestTrade), jadi kurva VWAP tergambar di kedua timeframe.
 function chartSeries(app){ return app.chartTf==='M5' ? app.m5Agg.series() : app.m1Agg.series(); }
 function requestChartRedraw(){
   if(chartRafPending) return;
@@ -4972,8 +5471,13 @@ function drawChart(canvas, m1, eng, dp, view){
   // dipakai untuk skala (kalau dipakai, satu zona lawas yang jauh dari harga sekarang bisa
   // memaksa seluruh chart zoom-out drastis dan candle terbaru jadi gepeng di tengah).
   const zoneBand = visibleZones.filter(z => (z.idxStart - zoneOffset) >= 0).flatMap(z => [z.top, z.bottom]);
-  const vwapBand = data.flatMap(c => c.vwap!=null ? [c.vwap+2*(c.vstd||0), c.vwap-2*(c.vstd||0)] : []);
-  const hi = Math.max(...data.map(c=>c.h), ...vwapBand, ...zoneBand), lo = Math.min(...data.map(c=>c.l), ...vwapBand, ...zoneBand);
+  // V1.6: VWAP kini ada di hampir semua candle (histori ikut dihitung), jadi pita +/-SD yg jauh dari harga TIDAK boleh
+  // menarik skala (candle jadi gepeng): hanya nilai VWAP yg berada dalam satu "tinggi rentang candle" yg ikut skala.
+  const hi0 = Math.max(...data.map(c=>c.h)), lo0 = Math.min(...data.map(c=>c.l)), rng0 = (hi0-lo0) || hi0*0.001 || 1;
+  const vwapBand = data.flatMap(c => c.vwap!=null
+    ? [c.vwap, c.vwap+(c.vstd||0), c.vwap-(c.vstd||0), c.vwap+2*(c.vstd||0), c.vwap-2*(c.vstd||0)] : [])
+    .filter(v => v>lo0-rng0 && v<hi0+rng0);
+  const hi = Math.max(hi0, ...vwapBand, ...zoneBand), lo = Math.min(lo0, ...vwapBand, ...zoneBand);
   const pad = (hi-lo)*0.08 || hi*0.001 || 1;
   const top=hi+pad, bot=lo-pad;
   const y = (px)=> H - ( (px-bot)/(top-bot) )*H;
@@ -5018,13 +5522,16 @@ function drawChart(canvas, m1, eng, dp, view){
   // VWAP sesi + pita ±1/±2 deviasi standar, sama seperti app Order Flow Roadmap.
   function drawCurve(getter, color, width, dash){
     ctx.strokeStyle=color; ctx.lineWidth=width; ctx.setLineDash(dash||[]);
-    ctx.beginPath(); let started=false;
+    ctx.beginPath(); let started=false, any=false, lastDay=null;
     data.forEach((c,i)=>{
       if(c.vwap==null) return;
+      const day = Math.floor(c.t/86400000);
+      if(lastDay!==null && day!==lastDay) started = false; // sesi baru (reset UTC): putus garis, jangan disambung lintas hari
+      lastDay = day;
       const val=getter(c); const cx=i*cw+cw/2;
-      if(!started){ ctx.moveTo(cx,y(val)); started=true; } else ctx.lineTo(cx,y(val));
+      if(!started){ ctx.moveTo(cx,y(val)); started=true; any=true; } else ctx.lineTo(cx,y(val));
     });
-    if(started) ctx.stroke();
+    if(any) ctx.stroke();
     ctx.setLineDash([]);
   }
   drawCurve(c=>c.vwap+2*(c.vstd||0), 'rgba(127,184,255,0.16)', 1, [2,4]);

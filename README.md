@@ -27,6 +27,9 @@ Aplikasi ini butuh sumber data live yang berjalan terpisah:
 Kalau bridge belum aktif, pair-pair itu otomatis jatuh ke status SIM/ERROR tanpa
 mengganggu pair kripto yang lain.
 
+Garis **VWAP** di chart live (M1 dan M5) langsung terisi dari histori begitu histori masuk — dihitung sejak 00:00 UTC, bukan
+mulai dari nol saat halaman dibuka (blueprint §13.2).
+
 Begitu tersambung, kripto & pair lewat bridge sama-sama langsung menarik histori
 candle (bukan mulai dari nol) — kripto lewat REST Binance, pair lainnya lewat
 histori trendbar cTrader yang diteruskan bridge. Fitur bridge ini butuh
@@ -48,6 +51,11 @@ tambah/tarik modal, tabel portofolio & riwayat trade, laporan kinerja (profit fa
 TWR, Sharpe, dst.), kurva ekuitas, ekspor CSV, dan **Backtest Otomatis** yang mengeksekusi sinyal
 CONFIRMED dari mesin. Tanpa data pasar, pilih "Data demo sintetis" untuk mencoba fiturnya.
 Detail model eksekusi dan batasannya ada di blueprint §11.
+
+**SL/TP bisa digeser langsung di chart**: tahan garis (atau labelnya) SL/TP posisi atau order pending lalu geser; ✕ di label =
+hapus level, `+SL`/`+TP` = tambah. Tombol **📐 Rencana BUY/SELL** di Panel Order menampilkan garis entri/SL/TP untuk order
+berikutnya yang juga bisa digeser sebelum BUY/SELL ditekan. Label memuat harga, P/L kotor bila level kena, dan kelipatan R;
+geseran yang salah sisi ditolak. Detail: blueprint §13.1.
 
 ### Indikator di chart backtest
 

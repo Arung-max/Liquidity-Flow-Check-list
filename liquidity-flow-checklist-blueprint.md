@@ -1,4 +1,4 @@
-# Liquidity Flow Checklist — Blueprint V1.5
+# Liquidity Flow Checklist — Blueprint V1.6
 
 > V1.0 adalah konsep & mockup ASCII. V1.1 ini mengisi setiap celah yang membuat
 > V1.0 tidak bisa langsung dikodekan: ambang angka, urutan gate yang tidak
@@ -834,3 +834,76 @@ dan hasilnya tidak boleh berubah.
 - VWAP di sini dihitung dari harga tipikal (H+L+C)/3 per candle, bukan per tick seperti VWAP live — mendekati, bukan
   identik. Volume pair non-kripto = jumlah tick.
 - Panel indikator hanya ada di chart backtest; chart live tetap dengan set gambar bawaannya (zona, level mesin, VWAP).
+
+
+## 13. SL/TP manual di chart backtest & VWAP dari histori di chart live (V1.6, baru)
+
+### 13.1 SL/TP yang bisa digeser langsung di chart backtest
+
+Level posisi terbuka, order pending, dan **rencana order** digambar sebagai garis yang bisa **digeser dengan pointer**
+(mouse/sentuh/pena). Tiap garis punya label (pil) berisi harga, **P/L kotor bila level itu kena**, dan kelipatan R
+(posisi: terhadap risiko AWAL = SL awal; order/rencana: terhadap SL-nya sendiri), mis. `SL 2589.50  -$98.25 · -1.0R`.
+
+| Garis | Warna | Bisa digeser | ✕ |
+|---|---|---|---|
+| Entri posisi (`BUY 0.49 @ 2591.51  -$13.23`, P/L mengambang) | biru | tidak | — |
+| SL / TP posisi | merah / hijau putus-putus | ya | hapus level |
+| Harga order pending (`LIMIT BUY 0.5 @ ...`) dan SL/TP-nya | kuning | ya | harga: **batalkan order**; SL/TP: hapus |
+| Rencana order (`RENCANA BUY 0.49 lot @ ...`, `RENCANA SL/TP ...`) | ungu / merah muda / hijau muda | ya (entri, SL, TP) | hapus SL/TP (mode Tanpa) |
+
+Cara pakai: tahan garis **atau labelnya**, geser, lepas = diterapkan. Selama menggeser garis memperlihatkan harga baru,
+P/L dan R-nya, jejak posisi awal (garis tipis), dan etiket harga di sumbu kanan; `Esc` membatalkan; geseran ≤ 2 px dianggap
+klik biasa. **✕** pada label menghapus level; chip **`+SL` / `+TP`** di samping label entri menambah level yang belum ada
+(SL bawaan = k × ATR dari harga acuan, TP bawaan = m × jarak SL; k/m diambil dari Panel Order bila mode-nya ATR/R, selain
+itu 1,5 dan 2; acuan posisi = harga penutup saat ini, order/rencana = harga entri).
+
+**Validasi memakai aturan simulator yang sama** (`btLevelError`, `btOrderPriceError`, `btModifyPosition`, kini juga
+`btModifyOrder`): BUY — SL di bawah dan TP di atas harga penutup (bid), SELL kebalikannya; order pending — harga
+LIMIT/STOP harus sah terhadap harga sekarang dan SL/TP dihitung terhadap HARGA ORDER. Geseran yang salah sisi ditandai
+abu-abu + pesan merah di label selama menggeser; saat dilepas **ditolak (tidak ada yang berubah)** dan muncul pesan
+sebentar di atas chart.
+
+Perilaku lain: **Play dijeda otomatis** saat mulai menggeser dan dilanjutkan saat dilepas; tidak bisa menggeser saat
+"Sampai Akhir" berjalan atau simulasi selesai; skala harga **tidak berubah selama seret** (garis tidak memicu zoom),
+posisi pointer dijepit di tepi panel harga; SL/TP order pending kini ikut menentukan skala harga. Label yang berdekatan
+disusun otomatis agar tidak bertumpuk. Level yang berada di luar rentang harga yang tampak tidak digambar (zoom-out dengan
+scroll, atau ketik angkanya di tabel Portofolio — input tabel tetap berfungsi).
+
+**📐 Rencana order (Panel Order → "Atur SL/TP di chart: Rencana BUY / Rencana SELL").** Menampilkan garis entri/SL/TP untuk
+order BERIKUTNYA, dihitung dari pengaturan Panel Order apa adanya (mode ATR/R/Harga, Market/Limit/Stop, ukuran), dengan zona
+risiko (merah) dan imbalan (hijau) di dekat candle terakhir. Menggeser **SL/TP** memindahkan kolom Panel Order ke mode
+**Harga** dengan nilai hasil geseran (pada ukuran mode Risiko %, lot dihitung ulang dari jarak SL baru); menggeser **entri** mengubah tipe
+order menjadi Limit/Stop (BUY di bawah ask = Limit, di atas = Stop; SELL kebalikannya; dekat harga = Market); ✕ pada SL/TP
+rencana = mode Tanpa SL/TP; `+SL`/`+TP` menambah level. Lalu tekan BUY/SELL seperti biasa. Setelah order dieksekusi **rencana
+berakhir dan kolom Panel Order yang diubah garis rencana dikembalikan** ke nilai sebelumnya (mis. ATR 1,5 / R 2) supaya
+tidak menyisakan harga absolut yang basi; klik tombol Rencana yang sama lagi hanya menyembunyikan garis (nilai dibiarkan);
+ganti sisi BUY↔SELL membatalkan perubahan rencana lama. Mode Harga (SL/TP absolut) juga dikembalikan ke ATR/R saat memuat
+data/simulasi baru. Mengetik di kolom Panel Order saat rencana aktif menggerakkan garisnya seketika.
+
+Batasan jujur: P/L pada label adalah P/L **kotor** (belum biaya, spread, slippage); entri posisi tidak bisa digeser; bila dua
+garis berimpit, yang terdekat dengan kursor dipilih (urutan daftar bila seri); R pada posisi yang SL-nya sudah dilonggarkan
+tetap relatif terhadap risiko awal (mis. SL digeser menjauh → `-2.8R`).
+
+### 13.2 VWAP chart live terisi dari histori (bukan mulai dari nol)
+
+Masalah lama: VWAP live (`updateVwap`) hanya dihitung dari tick **sejak halaman dibuka** dan hanya menandai candle M1 hasil
+tick — kurvanya baru muncul dari candle live pertama dan nilai "VWAP Sesi" cuma rata-rata sejak halaman dibuka, bukan sejak
+00:00 UTC. Sekarang, begitu histori masuk (klines Binance / trendbar cTrader lewat bridge), `rebuildVwap(app)`:
+1. menandai SEMUA candle M1 dan M5 (histori + candle live yang sudah ada + yang sedang terbentuk) dengan `vwap`/`vstd` dari
+   satu rumus per-candle — harga tipikal (H+L+C)/3 × volume, reset tiap hari UTC (batas yang sama dengan `updateVwap`);
+2. menyambungkan state tick-level `app.vwap` ke akumulasi hari berjalan, sehingga tick berikutnya (`ingestTrade`)
+   melanjutkan VWAP hari itu tanpa lompatan dan tanpa menghitung ganda. Akumulasi diambil dari deret (M1 atau M5) yang
+   mencakup **lebih banyak hari berjalan** (`vwapPickState`: hari lebih baru menang; hari sama → candle pertamanya lebih dini;
+   seri → M1) — mis. histori M1 hanya 1000 bar (≈ 16,7 jam, tak sampai 00:00 UTC) sedangkan M5 berhari-hari → state dari M5,
+   jadi VWAP sesi tetap dihitung sejak awal hari UTC. Idempoten: histori yang masuk lagi (reconnect) menghitung ulang dari
+   candle, bukan menambah.
+
+Efek: garis VWAP + pita ±1/±2 SD tergambar penuh dari tepi kiri saat chart pertama dibuka; "VWAP Sesi"/"Jarak dari VWAP" di
+Market Context dan anotasi kondisi memakai VWAP sesi penuh (std > 0 sejak awal); **M5 kini juga punya garis VWAP** (dulu hanya
+M1). Di chart: garis **putus di batas hari UTC** (tidak lagi menyambung lintas reset), dan skala harga tidak ditarik pita ±SD yang
+jauh dari harga (hanya nilai VWAP dalam satu "tinggi rentang candle" dari candle yang ikut skala).
+
+Batasan jujur: aproksimasi per-candle sedikit berbeda dari VWAP per-tick (garis jadi seragam & tanpa lubang); pada pair via
+bridge, bobot histori = volume trendbar cTrader (tick volume) sedangkan tick live hanya dipancarkan bridge saat mid berubah, jadi
+bobotnya mendekati tapi tidak identik; histori yang lebih pendek dari awal hari UTC → VWAP dihitung dari awal histori; bila histori
+gagal dimuat (bridge/REST error) perilaku kembali seperti dulu (mulai dari tick pertama).
