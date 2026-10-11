@@ -1,4 +1,4 @@
-# Liquidity Flow Checklist — Blueprint V1.6
+# Liquidity Flow Checklist — Blueprint V1.9
 
 > V1.0 adalah konsep & mockup ASCII. V1.1 ini mengisi setiap celah yang membuat
 > V1.0 tidak bisa langsung dikodekan: ambang angka, urutan gate yang tidak
@@ -907,3 +907,158 @@ Batasan jujur: aproksimasi per-candle sedikit berbeda dari VWAP per-tick (garis 
 bridge, bobot histori = volume trendbar cTrader (tick volume) sedangkan tick live hanya dipancarkan bridge saat mid berubah, jadi
 bobotnya mendekati tapi tidak identik; histori yang lebih pendek dari awal hari UTC → VWAP dihitung dari awal histori; bila histori
 gagal dimuat (bridge/REST error) perilaku kembali seperti dulu (mulai dari tick pertama).
+
+## 14. Strategi backtest EA: EMA Color Reverse (V1.7, baru)
+
+Alternatif dari auto-trade sinyal mesin: port EA MT4 "EMA_Color_Reverse" (mode `COLORED_EMA_RULE`, identik dengan aturan
+indikator Pine "Colored EMA") sebagai strategi backtest kedua yang bisa dipilih di panel setup (**Strategi → Mode**).
+Dipakai untuk menjawab pertanyaan paling dasar pada sebuah EA mekanis sebelum dipakai sungguhan: berapa persen trade-nya
+menang, di atas data historis yang sama dengan mesin Liquidity Flow.
+
+### 14.1 Logika EA
+
+- **Sinyal**: EMA(periode, sumber harga) dihitung dari candle. Warna HIJAU (pegang BUY) bila `close[1] > ema` **dan**
+  `close > ema` (keduanya dibanding EMA candle yang SAMA, sesuai rumus Pine `ta.ema`); selain itu MERAH (pegang SELL).
+  Sinyal selalu dibaca dari candle yang **baru tutup** — satu-satunya mode yang bisa dimodelkan di data candle, karena
+  backtest ini tak punya tick intra-candle untuk mode "candle berjalan" (`UseClosedCandle=false` di EA asli).
+- **Selalu satu posisi, berbalik arah langsung**: begitu warna berubah, posisi lawan ditutup dan posisi baru dibuka seketika
+  (tanpa cooldown kecuali validasi level/margin gagal) — port dari `CloseOpposite()` + `OrderSend()` EA asli. Maksimal satu
+  posisi bertag `EA` terbuka.
+- **Eksekusi**: karena sinyal dari candle yang baru tutup setara dengan EA menerima tick pertama candle berikutnya, order
+  dieksekusi di **open candle berikutnya** (bukan di close candle sinyal, beda dengan auto-trade sinyal mesin yang
+  dieksekusi di close candle sinyal itu sendiri) — menghindari keuntungan tak realistis dari gap akhir pekan.
+- **Ukuran tetap**: lot tetap (bukan risiko %, beda dari strategi sinyal mesin), dibulatkan ke step lot instrumen.
+- **SL/TP opsional** dalam tick (= "poin" MT4 di kodebase ini), dihitung dari harga eksekusi; **filter spread maksimum**
+  opsional (tick) — entri dilewati bila spread saat itu melebihi batas.
+- **Tidak diport**: mode `CUSTOM_INDICATOR` (butuh `iCustom`/indikator MT4 asli), `MagicNumber`/`RetrySeconds` (tak relevan
+  di backtest single-run — kegagalan cukup dilewati satu candle, otomatis dicoba lagi saat sinyal sama muncul lagi).
+
+### 14.2 Implementasi
+
+Inti strategi (`btEaNormalize`, `btEaInit`, `btEaSignal`, `btEaStep`) ditempatkan setelah `btOnSignal` di bagian simulator,
+mengikuti pola fungsi murni + bisa diuji yang sama dengan sisa simulator. `btEaStep` dipanggil di awal `btStep`, tepat
+setelah `sim.idx` maju ke candle baru tapi SEBELUM order pending/SL-TP candle itu dicek — pola yang sama dengan order
+pending yang terisi di awal candle (`btFillOrders` → `btCheckExits` pada candle yang sama).
+
+Dua strategi **saling eksklusif** lewat `cfg.strategy` (`'engine'` default atau `'ea'`): saat `'ea'`, hook sinyal mesin
+(`btOnSignal`) tidak dipanggil lagi, tapi mesin **tetap jalan** mengevaluasi candle (chart/overlay/tab lain tetap berfungsi
+normal, cuma tak auto-trade). Karena itu `sim.closed` berisi 100% trade EA saat strategi EA aktif — `btStats` dan
+`btReportHtml` (win rate, profit factor, drawdown, Sharpe, per-arah, dst.) dipakai **apa adanya, tanpa perubahan apa pun**;
+hanya baris ringkasan penutup laporan yang dibuat kondisional (menyebut parameter EA & jumlah pembalikan arah, bukan
+"sinyal CONFIRMED dari mesin").
+
+EMA dihitung sekali per simulasi (`indMA` + `indSource`, sama dengan EMA di panel Indikator §12) atas seluruh deret
+candle — causal per-indeks, jadi tidak perlu dihitung ulang tiap langkah dan otomatis bebas lookahead (indeks ke-i hanya
+bergantung pada candle ≤ i).
+
+### 14.3 Panel setup
+
+Grup **Strategi** (dropdown Mode) menggantikan grup "Strategi otomatis (sinyal mesin)" yang lama dengan dua grup
+bergantian: grup lama disembunyikan (bukan dihapus) saat mode EA dipilih, grup baru **Strategi EA: EMA Color Reverse**
+muncul dengan field Periode EMA, Sumber harga EMA (Close/Open/High/Low/HL2/HLC3/OHLC4 — sama dengan sumber harga indikator
+di §12), Lot tetap, Stop loss/Take profit (tick), dan Spread maks (tick). Semua field tersimpan ke `localStorage` lewat
+mekanisme `BT_FIELDS` yang sama dengan field setup lain (tidak ada kode penyimpanan baru).
+
+Batasan jujur: mode `'ea'` tidak live-appliable ke simulasi yang sedang berjalan (ganti strategi perlu **Muat & Mulai
+Ulang**, sama seperti ganti pair/timeframe); win rate rendah dengan profit factor positif (atau sebaliknya) wajar untuk
+EA trend-following stop-and-reverse — baca selalu bersama profit factor dan expectancy, bukan win rate saja; hasil tetap
+in-sample pada data historis yang sama dengan mesin Liquidity Flow, bukan bukti kinerja ke depan.
+
+## 15. Strategi backtest EA: VWAP Stdev Bands (V1.8, baru)
+
+Strategi backtest ketiga (selain sinyal mesin dan EA EMA Color Reverse di §14): port EA MT4 `RobotVWAP.mq4`
+(komentar asalnya sendiri: `"Ported from Pine Script 'VWAP Stdev Bands v2 Mod'"`) — VWAP tertimbang volume per sesi
+dengan 5 tier pita simpangan baku, mode entry mean-reversion atau breakout. Dipilih lewat Strategi → Mode yang sama
+dengan §14.
+
+### 15.1 Logika EA
+
+- **VWAP & pita**: harga **HL2** `(H+L)/2` (beda dari indikator "VWAP Sesi ± SD" di §12 yang memakai HLC3) ditimbang
+  volume candle (tick volume kalau tak ada volume transaksi asli, sama seperti indikator VWAP), **dihitung ulang
+  penuh dari awal sesi setiap candle** (bukan smoothing incremental) — identik dengan `CalculateVWAP()` di EA asli
+  yang dipanggil tiap tick. Deviasi = akar dari `E[harga²] − E[harga]²` (tertimbang volume). Reset tiap sesi (hari
+  UTC + geseran jam yang bisa diatur) memakai `indDayKey` yang sama dengan indikator VWAP chart live/backtest.
+  Lima tier pita dengan multiplier **1,28 / 2,01 / 2,51 / 3,09 / 4,01** (bawaan EA, simetris atas-bawah) — nilai ini
+  tidak diekspos di UI (jarang diubah di EA aslinya; mengubahnya berarti bukan lagi "VWAP Stdev Bands" standar).
+- **Mode Mean-Reversion** (bawaan): candle yang **baru tutup** menembus tier terpilih (`High ≥ atas` atau
+  `Low ≤ bawah`) lalu **close-nya kembali ke dalam** tier itu (rejection/pantulan) → entry berlawanan arah tembusan.
+  SL = tier **berikutnya** (lebih lebar) + buffer; TP = VWAP atau pita tier-1 dalam (pilihan).
+- **Mode Breakout**: candle yang baru tutup **close-nya menembus** tier terpilih **dengan body candle ≥ faktor ×
+  deviasi** (filter displacement, menyaring tembusan tipis/noise) → entry searah tembusan. SL = tier yang ditembus;
+  TP = tier berikutnya, atau **RR tetap** sebagai fallback kalau tier yang ditembus sudah yang terakhir (tier 5,
+  tak ada tier ke-6 sebagai target).
+- **Eksekusi & posisi**: sinyal dibaca dari candle yang baru tutup, dieksekusi di **open candle berikutnya** — pola
+  waktu yang sama dengan EA EMA Color Reverse (§14.1), karena EA aslinya juga bereaksi persis saat candle baru
+  mulai (`Time[0]==bar baru` di `OnTick`). **Beda penting dari EMA Color Reverse**: EA ini **tidak membalik
+  otomatis**. Maksimal satu posisi bertag `VWAPEA` (apa pun arahnya); begitu ada posisi terbuka, sinyal baru
+  (termasuk sinyal berlawanan arah) **diabaikan total** — posisi hanya berakhir lewat SL/TP-nya sendiri, sama
+  seperti `OpenTrade()` di EA asli yang tidak pernah menutup posisi lawan.
+- **Ukuran posisi**: bisa risiko % (lewat `btSizeForRisk`, sama dengan sizing sinyal mesin) atau lot tetap —
+  EA aslinya mendukung keduanya lewat `UseRiskPercent`.
+- **Tidak diport**: filter jam trading (`UseTradingHoursFilter`, bawaan nonaktif di EA), tutup semua posisi di akhir
+  sesi (`CloseAllAtSessionEnd`, bawaan nonaktif), `MagicNumber` (tak relevan, satu strategi per simulasi), input
+  `Slippage` poin (dipakai model biaya backtest yang sudah ada — Slippage tick di panel Biaya & Eksekusi).
+
+### 15.2 Implementasi
+
+`btVwapEaCalc(candles, anchorHour)` menghitung array VWAP/deviasi/lima-tier-pita **sekali per simulasi** atas
+seluruh deret candle (causal per-indeks, pola akumulasi identik dengan `calc()` indikator VWAP di §12 — reset saat
+`indDayKey` berubah). `btVwapEaSignal(sim, k)` membaca sinyal murni dari candle ke-`k` (sudah tutup) dibanding pita
+pada indeks **yang sama** `k` — port langsung `CheckMeanReversion()`/`CheckBreakout()`. `btVwapEaLevels(sim, k, sig,
+fill)` menghitung SL/TP sesuai tier & mode — port `OpenTrade()`. `btVwapEaStep(sim, c)` dipanggil di awal `btStep`
+(gantian dengan EA EMA Color Reverse lewat `cfg.strategy==='vwapea'`), pola waktu yang sama dengan `btEaStep`.
+
+Satu penyederhanaan yang disengaja dari EA asli: EA MT4 menghitung VWAP/pita **tiap tick** (termasuk candle yang
+baru mulai, dengan bobot nyaris nol), sedangkan backtest berbasis candle ini memakai pita pada indeks candle `k`
+yang SAMA dengan candle sinyal (bukan "candle yang baru mulai") — baik untuk deteksi sinyal maupun hitung SL/TP.
+Hasilnya praktis identik dengan EA asli (kontribusi candle yang baru mulai memang nyaris nol), **kecuali** tepat di
+batas sesi, di mana EA asli punya inkonsistensi (pita "saat ini" sudah reset sesi baru tapi dibandingkan ke candle
+sesi lama) yang port ini sengaja hindari dengan selalu konsisten satu titik waktu.
+
+Tiga strategi (sinyal mesin, EA EMA, EA VWAP) **saling eksklusif** lewat `cfg.strategy`; `btStats`/`btReportHtml`
+tetap generik tanpa perubahan (lihat §14.2) — hanya baris ringkasan penutup laporan yang kini bercabang tiga arah.
+
+### 15.3 Panel setup
+
+Grup **Strategi EA: VWAP Stdev Bands** muncul saat Mode dipilih, berisi: Mode (mean-reversion/breakout), tier entri
+mean-reversion & breakout (1-5, terpisah per mode — field yang tak relevan dengan mode terpilih tetap tampil,
+sama seperti input EA MT4 yang tidak sembunyi-tampil sesuai mode), target TP mean-reversion, filter displacement
+breakout, buffer SL (tick), RR fallback (breakout tier 5), ukuran (risiko %/lot tetap + nilainya), jam reset sesi
+VWAP (UTC), dan spread maks (tick). Field tersimpan ke `localStorage` lewat mekanisme `BT_FIELDS` yang sama.
+
+Batasan jujur: multiplier lima tier pita tidak bisa diubah di UI (lihat §15.1); tidak ada filter jam trading atau
+tutup-posisi-di-akhir-sesi (EA selalu aktif 24 jam, sesuai bawaan EA); sample trade biasanya jauh lebih kecil
+daripada EA EMA Color Reverse pada jumlah candle yang sama (sinyal lebih jarang — butuh tembus tier dulu), jadi
+perhatikan baik-baik banner sample kecil di laporan sebelum menyimpulkan apa pun dari win rate-nya.
+
+## 16. Backtest: batas 10.000 candle & timeframe M15/H1 (V1.9, baru)
+
+Panel setup backtest naik dari 3000 ke **10.000 candle** (`BT_MAX_CANDLES`), dan timeframe bertambah dari M1/M5
+menjadi empat pilihan: **M1, M5, M15, H1** (`BT_TF` — peta label → {ms per candle, ms konteks HTF untuk mesin}:
+M1→konteks M5, M5→konteks M15, M15→konteks H1, H1→konteks H4). `btDemoCandles` dan `btResample` sudah generik
+terhadap timeframe berapa pun sejak awal (skala volatilitas demo memakai `sqrt(tfMs/60000)`), jadi menambah M15/H1
+tidak menyentuh mesin simulasi/statistik sama sekali — murni soal pemetaan timeframe di `btBuildData`/`btCreateSim`
+dan opsi baru di panel setup.
+
+**Data demo sintetis**: langsung mendukung 10.000 candle di keempat timeframe, tanpa batasan tambahan apa pun
+(sudah diverifikasi: H1 10.000 candle ≈ 14 bulan data, selesai dalam hitungan detik).
+
+**Data pasar (live)**: **tidak ada feed/backfill baru**. M1 & M5 tetap memakai buffer live yang sudah ada
+(`app.m1Agg`/`app.m5Agg`); M15 & H1 **diturunkan on-the-fly via resample** dari buffer M5 tersimpan (`btResample`,
+bukan dari M1 — M5 mencakup rentang waktu lebih panjang pada jumlah-candle yang sama). Karena buffer M5 sendiri
+dibatasi `BACKFILL_CANDLES` (3300 candle M5 ≈ 11,5 hari, lihat §6), H1 hasil resample dari buffer itu paling banyak
+≈275 candle H1 — jauh di bawah 10.000. Ini **bukan bug**, melainkan konsekuensi langsung dari kedalaman backfill
+yang ada; `btBuildData` sudah menangani ini dengan baik lewat jalur yang sudah ada sejak awal (pesan "Data tersedia
+hanya N candle" bila kurang dari yang diminta, atau error jelas + tawaran pindah ke Data Demo bila di bawah
+`BT_MIN_CANDLES`) — **tidak ditambah logika baru**, cukup diverifikasi tetap berfungsi untuk keempat timeframe.
+
+Memperpanjang histori NYATA yang tersedia untuk M15/H1 (atau memperbesar `BACKFILL_CANDLES` untuk M1/M5) adalah
+pekerjaan terpisah yang lebih besar: perlu menaikkan target backfill Binance klines (`backfillBinance`, sudah
+dipaging lewat `fetchBinanceKlinesPaged`, jadi secara teknis bisa, hanya lebih banyak request & lebih lambat) **dan**
+permintaan trendbar di `bridge.mjs` (proyek terpisah di luar file ini, perlu di-restart manual oleh pengguna setelah
+diubah — sama seperti catatan `BACKFILL_CANDLES` di §6) — sengaja tidak dikerjakan di sesi ini.
+
+Batasan jujur: multiplier EA VWAP Stdev Bands (§15) dan parameter EA EMA Color Reverse (§14) tetap dalam satuan
+tick/poin candle dasar yang dipilih (mis. "SL 20 tick" berarti 20× tick harga, bukan 20 menit — jarak harganya sama
+di semua timeframe, tapi makna waktunya beda jauh antara M1 dan H1); pertimbangkan itu saat membandingkan hasil
+backtest EA yang sama di timeframe berbeda.

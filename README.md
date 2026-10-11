@@ -45,12 +45,20 @@ Buka `liquidity-flow-checklist.html` langsung di browser (dobel klik, atau lewat
 
 ## Backtest & simulasi trading
 
-Tombol **🧪 Backtest** di topbar: simulator akun di atas candle historis (M1 atau M5, sampai
-3000 candle) dengan panel BUY/SELL (market/limit/stop, SL/TP, ukuran lot atau risiko %),
+Tombol **🧪 Backtest** di topbar: simulator akun di atas candle historis (M1, M5, M15, atau H1,
+sampai 10.000 candle — M15/H1 di "Data pasar" diturunkan via resample dari buffer M5 tersimpan, jadi
+jangkauannya tetap dibatasi histori yang sudah di-backfill; "Data demo sintetis" tak punya batasan itu)
+dengan panel BUY/SELL (market/limit/stop, SL/TP, ukuran lot atau risiko %),
 tambah/tarik modal, tabel portofolio & riwayat trade, laporan kinerja (profit factor, drawdown,
 TWR, Sharpe, dst.), kurva ekuitas, ekspor CSV, dan **Backtest Otomatis** yang mengeksekusi sinyal
 CONFIRMED dari mesin. Tanpa data pasar, pilih "Data demo sintetis" untuk mencoba fiturnya.
 Detail model eksekusi dan batasannya ada di blueprint §11.
+
+Panel setup punya pilihan **Strategi → Mode**: "Sinyal mesin" (bawaan), **EA: EMA Color Reverse** — port EA MT4
+"EMA_Color_Reverse" (selalu satu posisi, berbalik arah saat warna EMA berubah, lot tetap, SL/TP opsional), atau
+**EA: VWAP Stdev Bands** — port EA MT4 "RobotVWAP" (VWAP tertimbang volume per sesi + 5 tier pita simpangan baku,
+mode mean-reversion atau breakout, maksimal 1 posisi tanpa membalik otomatis). Ketiganya memakai tab Laporan yang
+sama (win rate, profit factor, drawdown, dst.) tanpa mengubah logika EA-nya. Detail: blueprint §14 (EMA) & §15 (VWAP).
 
 **SL/TP bisa digeser langsung di chart**: tahan garis (atau labelnya) SL/TP posisi atau order pending lalu geser; ✕ di label =
 hapus level, `+SL`/`+TP` = tambah. Tombol **📐 Rencana BUY/SELL** di Panel Order menampilkan garis entri/SL/TP untuk order

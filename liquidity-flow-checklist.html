@@ -269,7 +269,7 @@
   .bt-grp input[type="number"]{width:92px;} .bt-grp select{max-width:190px;}
   .bt-card input[type="number"],.bt-card select{width:100%;}
   .bt-grp input[type="checkbox"]{width:15px;height:15px;accent-color:var(--blue);}
-  .bt-actions{align-self:flex-end;margin-left:auto;}
+  .bt-actions{display:flex;gap:10px;align-items:center;margin:0 0 10px;}
   .bt-main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:12px;align-items:start;}
   .bt-left,.bt-right{display:flex;flex-direction:column;gap:12px;min-width:0;}
   .bt-charthead{display:flex;gap:8px 10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;font-size:12px;}
@@ -304,7 +304,7 @@
   .bt-chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;}
   #btTabBody{overflow-x:auto;padding-top:10px;}
   #btTabBody .an-table td{vertical-align:middle;}
-  @media (max-width:1100px){ .bt-main{grid-template-columns:1fr;} .bt-actions{margin-left:0;} }
+  @media (max-width:1100px){ .bt-main{grid-template-columns:1fr;} }
   /* ---------- Indikator (Backtest) ---------- */
   .bt-indbtn.on{border-color:var(--blue);color:var(--blue);}
   .bt-chartwrap{display:flex;gap:10px;align-items:flex-start;}
@@ -459,9 +459,9 @@
         <div class="bt-grp">
           <div class="bt-grp-h">Data</div>
           <label>Pair <select id="btPair"></select></label>
-          <label>Timeframe <select id="btTf"><option value="M1">M1</option><option value="M5">M5</option></select></label>
+          <label>Timeframe <select id="btTf"><option value="M1">M1</option><option value="M5">M5</option><option value="M15">M15</option><option value="H1">H1</option></select></label>
           <label>Sumber <select id="btSource"><option value="market">Data pasar (histori dimuat)</option><option value="demo">Data demo sintetis</option></select></label>
-          <label>Jumlah candle (maks 3000) <input type="number" id="btCount" min="100" max="3000" step="100" value="3000"></label>
+          <label>Jumlah candle (maks 10000) <input type="number" id="btCount" min="100" max="10000" step="100" value="10000"></label>
           <label id="btSeedWrap" style="display:none">Seed demo <input type="number" id="btSeed" value="42"></label>
         </div>
         <div class="bt-grp">
@@ -480,15 +480,57 @@
             <select id="btSameBar"><option value="sl">Pesimis: SL dulu</option><option value="tp">Optimis: TP dulu</option><option value="open">Terdekat dari open</option></select></label>
         </div>
         <div class="bt-grp">
+          <div class="bt-grp-h">Strategi</div>
+          <label>Mode <select id="btStrategy">
+            <option value="engine">Sinyal mesin (Liquidity Flow)</option>
+            <option value="ea">EA: EMA Color Reverse</option>
+            <option value="vwapea">EA: VWAP Stdev Bands</option>
+          </select></label>
+        </div>
+        <div class="bt-grp" id="btStratEngine">
           <div class="bt-grp-h">Strategi otomatis (sinyal mesin)</div>
           <label class="chk"><input type="checkbox" id="btAuto" checked> Auto-trade sinyal CONFIRMED</label>
           <label>Risiko / trade (%) <input type="number" id="btRisk" min="0.01" max="100" step="0.25" value="1"></label>
           <label class="chk"><input type="checkbox" id="btTimeStop" checked> Time-stop mesin</label>
         </div>
-        <div class="bt-grp bt-actions">
-          <button class="btn primary" id="btLoad">⟳ Muat &amp; Mulai Ulang</button>
-          <button class="btn" id="btAutoRun" title="Muat ulang lalu jalankan sampai akhir dengan sinyal mesin">⚡ Backtest Otomatis</button>
+        <div class="bt-grp" id="btStratEa" style="display:none">
+          <div class="bt-grp-h">Strategi EA: EMA Color Reverse</div>
+          <label>Periode EMA <input type="number" id="btEaPeriod" min="2" max="500" step="1" value="50"></label>
+          <label>Sumber harga EMA <select id="btEaSrc"></select></label>
+          <label>Lot tetap <input type="number" id="btEaLots" min="0.001" step="0.01" value="0.10"></label>
+          <label>Stop loss (tick, 0=tanpa) <input type="number" id="btEaSl" min="0" step="1" value="0"></label>
+          <label>Take profit (tick, 0=tanpa) <input type="number" id="btEaTp" min="0" step="1" value="0"></label>
+          <label>Spread maks (tick, 0=tanpa batas) <input type="number" id="btEaMaxSpread" min="0" step="1" value="0"></label>
+          <div class="bt-muted" style="margin-top:4px">Port EA MT4 "EMA_Color_Reverse" (mode Colored EMA): selalu pegang 1 posisi, berbalik arah langsung saat warna EMA berubah. Sinyal dari candle yang baru tutup; eksekusi di open candle berikutnya.</div>
         </div>
+        <div class="bt-grp" id="btStratVwapEa" style="display:none">
+          <div class="bt-grp-h">Strategi EA: VWAP Stdev Bands</div>
+          <label>Mode <select id="btVeMode">
+            <option value="mr">Mean-reversion (fade band)</option>
+            <option value="breakout">Breakout</option>
+          </select></label>
+          <label>Tier entri mean-reversion (1-5) <input type="number" id="btVeEntryTier" min="1" max="5" step="1" value="2"></label>
+          <label>Tier entri breakout (1-5) <input type="number" id="btVeBreakoutTier" min="1" max="5" step="1" value="1"></label>
+          <label>Target TP mean-reversion <select id="btVeTpTarget">
+            <option value="vwap">VWAP</option>
+            <option value="inner">Band dalam (tier 1)</option>
+          </select></label>
+          <label>Filter displacement breakout (× dev) <input type="number" id="btVeDisp" min="0" step="0.05" value="0.25"></label>
+          <label>Buffer SL (tick) <input type="number" id="btVeSlBuf" min="0" step="1" value="20"></label>
+          <label>RR fallback breakout tier 5 <input type="number" id="btVeRR" min="0.1" step="0.1" value="1.5"></label>
+          <label>Ukuran <select id="btVeSizeMode">
+            <option value="risk">Risiko %</option>
+            <option value="lot">Lot tetap</option>
+          </select></label>
+          <label>Nilai ukuran <input type="number" id="btVeSizeVal" min="0.001" step="0.1" value="1"></label>
+          <label>Jam reset sesi VWAP (UTC) <input type="number" id="btVeAnchor" min="0" max="23" step="1" value="0"></label>
+          <label>Spread maks (tick, 0=tanpa batas) <input type="number" id="btVeMaxSpread" min="0" step="1" value="0"></label>
+          <div class="bt-muted" style="margin-top:4px">Port EA MT4 "RobotVWAP" (VWAP Stdev Bands v2 Mod): VWAP tertimbang volume (HL2) + 5 tier pita simpangan baku (1.28/2.01/2.51/3.09/4.01, bawaan EA, tak bisa diubah di sini), reset tiap sesi. Mean-reversion = fade saat harga menembus lalu balik ke dalam tier; breakout = lanjut arah tembusan dgn filter body candle. Maksimal 1 posisi, keluar hanya lewat SL/TP (tidak membalik otomatis, tidak ada filter jam trading/tutup-di-akhir-sesi — selalu aktif). Sinyal dari candle yang baru tutup, eksekusi di open candle berikutnya.</div>
+        </div>
+      </div>
+      <div class="bt-actions">
+        <button class="btn primary" id="btLoad">⟳ Muat &amp; Mulai Ulang</button>
+        <button class="btn" id="btAutoRun" title="Muat ulang lalu jalankan backtest sampai akhir dengan strategi yang dipilih">⚡ Backtest Otomatis</button>
       </div>
       <div id="btMsg" class="banner info" style="display:none"></div>
       <div class="bt-main">
@@ -2806,12 +2848,16 @@ function wireDataPrivacySection(body, rerender){
 //  - Kalau SL & TP sama-sama tersentuh dlm SATU candle, urutannya tidak bisa diketahui dari OHLC:
 //    default PESIMIS (SL dianggap kena dulu). Bisa diganti lewat cfg.sameBar.
 //  - Lot * contract = unit instrumen. P/L dlm USD (USDJPY dikonversi dgn /harga).
-const BT_MAX_CANDLES = 3000;
+const BT_MAX_CANDLES = 10000;
 const BT_WARMUP = 300;
 const BT_MIN_CANDLES = 60;
+// Peta timeframe backtest -> {ms per candle, ms konteks HTF utk mesin}. M15/H1 di sumber "Data pasar" diturunkan
+// dgn resample dari buffer M5 tersimpan (lihat btBuildData), bukan dari feed baru -- jangkauan historinya tetap
+// dibatasi BACKFILL_CANDLES (dihitung dalam candle M5, bukan M15/H1).
+const BT_TF = { M1:{ms:60000,ctxMs:300000}, M5:{ms:300000,ctxMs:900000}, M15:{ms:900000,ctxMs:3600000}, H1:{ms:3600000,ctxMs:14400000} };
 const BT_DEFAULT_CFG = {
   capital:10000, leverage:100, riskPct:1, stopOutPct:50, sameBar:'sl', autoTrade:true, timeStop:true,
-  slipTicks:2, spreadTicks:null, commPct:null, commLot:null,
+  slipTicks:2, spreadTicks:null, commPct:null, commLot:null, strategy:'engine',
 };
 
 // Default per instrumen (bisa ditimpa di UI): kontrak per 1 lot, step lot, spread (dlm tick), komisi.
@@ -2991,7 +3037,7 @@ function btCreateSim(o){
   if(cfg.commLot==null) cfg.commLot = spec.commLot;
   const tick = o.tickSize || Math.pow(10, -(asset.dp||2));
   const sim = {
-    asset, spec, cfg, tick, tfMs:o.tfMs, ctxMs:o.ctxMs, tf:o.tfMs===300000?'M5':'M1', source:o.source||'market',
+    asset, spec, cfg, tick, tfMs:o.tfMs, ctxMs:o.ctxMs, tf:o.tf||'M1', source:o.source||'market',
     candles:o.candles, ctx:o.ctx, start:o.start, idx:o.start-1, ci:0,
     engine:newEngineState(asset),
     engSettings:Object.assign({}, o.settings||SETTINGS, { tfMul:o.tfMs/60000 }),
@@ -3001,7 +3047,9 @@ function btCreateSim(o){
     lastEq:cfg.capital, peak:cfg.capital, maxDD:0, maxDDPct:0, ddRun:0, ddRunMax:0,
     commPaid:0, exposed:0, finished:false,
   };
-  sim.hook = evt=>{ if(evt.type==='confirmed') btOnSignal(sim, evt); };
+  if(cfg.strategy==='ea') sim.ea = btEaInit(sim, cfg.ea);
+  else if(cfg.strategy==='vwapea') sim.vwapea = btVwapEaInit(sim, cfg.vwapea);
+  sim.hook = evt=>{ if(evt.type==='confirmed' && sim.cfg.strategy==='engine') btOnSignal(sim, evt); };
   for(let i=0;i<sim.start;i++) btFeed(sim, i, false);
   return sim;
 }
@@ -3186,6 +3234,180 @@ function btOnSignal(sim, evt){
   if(r.ok) sig.traded = true; else btLog(sim, 'SIGNAL', 'Sinyal ditolak: '+r.msg);
 }
 
+/* ---- strategi EA: EMA Color Reverse (port MQL4, mode COLORED_EMA_RULE) ----
+   EMA HIJAU (close[1]>ema && close[0]>ema, keduanya vs EMA bar yg SAMA) => pegang BUY; selain itu MERAH => pegang SELL.
+   Sinyal dibaca dari candle yg BARU TUTUP (spt UseClosedCandle=true di EA asli -- satu-satunya mode yg bisa dimodelkan
+   di data candle, krn backtest ini tak punya tick intra-candle utk mode "forming candle"). EA bereaksi persis saat
+   candle baru mulai -> eksekusi di OPEN candle berikutnya (bukan di close candle sinyal). Berbalik arah -> tutup
+   posisi lawan, langsung buka baru (spt CloseOpposite+OrderSend di EA asli, tanpa cooldown kecuali kegagalan level).
+   Maksimal satu posisi tag 'EA' terbuka. TIDAK diport: mode CUSTOM_INDICATOR (iCustom butuh indikator MT4) dan
+   MagicNumber/RetrySeconds (tak relevan di backtest single-run ini -- kegagalan cukup dilewati, dicoba lagi candle
+   berikutnya otomatis via sinyal yg sama). */
+function btEaNormalize(raw){
+  raw = raw || {};
+  const num = (v, d, lo, hi, int)=>{ let x = (v==null || v==='') ? NaN : Number(v); if(!isFinite(x)) x = d; if(int) x = Math.round(x); return clamp(x, lo, hi); };
+  return {
+    emaPeriod: num(raw.emaPeriod, 50, 2, 500, true),
+    src: raw.src || 'close',
+    lots: num(raw.lots, 0.10, 0, 1000, false),
+    slPoints: num(raw.slPoints, 0, 0, 1e7, true),
+    tpPoints: num(raw.tpPoints, 0, 0, 1e7, true),
+    maxSpreadPoints: num(raw.maxSpreadPoints, 0, 0, 1e7, true),
+  };
+}
+function btEaInit(sim, raw){
+  const p = btEaNormalize(raw);
+  p.lots = Math.max(sim.spec.minLot, btRoundLot(sim, p.lots || sim.spec.minLot));
+  return { p, ema: indMA(indSource(sim.candles, p.src), p.emaPeriod, 2/(p.emaPeriod+1)), lastDir:null, flips:0, entries:0 };
+}
+// Port ReadSignal() (mode COLORED_EMA_RULE, shift=1): sinyal dari candle ke-i yg SUDAH TUTUP -> 'buy' | 'sell' | null.
+function btEaSignal(sim, i){
+  const e = sim.ea.ema[i];
+  if(e==null || i<1 || !(e>0)) return null;
+  const cur = sim.candles[i].c, prev = sim.candles[i-1].c;
+  if(!(cur>0) || !(prev>0)) return null;
+  return (prev>e && cur>e) ? 'buy' : 'sell';
+}
+// Dipanggil di awal btStep, SETELAH sim.idx maju ke candle `c` (baru mulai) tapi SEBELUM btFillOrders/btCheckExits:
+// sinyal dibaca dari candle sim.idx-1 (baru tutup), eksekusi di OPEN candle sim.idx -- persis saat EA menerima tick
+// pertama candle baru. SL/TP posisi yg baru dibuka lalu dicek thd H/L candle sim.idx yg sama oleh btCheckExits
+// (pola yg sama dgn order pending yg terisi di awal candle via btFillOrders).
+function btEaStep(sim, c){
+  const ea = sim.ea, p = ea.p;
+  const desired = btEaSignal(sim, sim.idx-1);
+  if(!desired) return;
+  if(ea.lastDir!==desired){ if(ea.lastDir!=null) ea.flips++; ea.lastDir = desired; }
+  const mid = c.o;
+  sim.positions.filter(x=>x.tag==='EA' && x.side!==desired)
+    .forEach(x=>btClosePos(sim, x, btExitFill(sim, x.side, mid), 'BALIK ARAH'));
+  if(sim.positions.some(x=>x.tag==='EA' && x.side===desired)) return;
+  if(sim.idx >= sim.candles.length-1) return; // candle terakhir: akan ditutup paksa 'AKHIR DATA', tak perlu entri baru
+  if(p.maxSpreadPoints>0 && sim.cfg.spreadTicks>p.maxSpreadPoints){ btLog(sim, 'EA', 'Entri dilewati: spread '+sim.cfg.spreadTicks+' tick > batas '+p.maxSpreadPoints); return; }
+  const dir = desired==='buy' ? 1 : -1;
+  const ref = desired==='buy' ? mid+btHS(sim) : mid-btHS(sim);
+  const sl = p.slPoints>0 ? btTickRound(sim, ref - dir*p.slPoints*sim.tick) : null;
+  const tp = p.tpPoints>0 ? btTickRound(sim, ref + dir*p.tpPoints*sim.tick) : null;
+  const fill = btEntryFill(sim, desired, mid);
+  if(btLevelError(desired, fill, sl, tp)) return;
+  const r = btOpenFilled(sim, desired, p.lots, fill, sl, tp, 'EA');
+  if(r.ok) ea.entries++; else btLog(sim, 'EA', 'Entri ditolak: '+r.msg);
+}
+
+/* ---- strategi EA: VWAP Stdev Bands (port MQL4 "RobotVWAP", asal Pine "VWAP Stdev Bands v2 Mod") ----
+   VWAP tertimbang volume (harga HL2, bukan HLC3 spt indikator VWAP di §12) + 5 tier pita simpangan baku multiplier
+   1.28/2.01/2.51/3.09/4.01 (bawaan EA, simetris atas/bawah -- tidak diekspos di UI), reset tiap sesi (hari UTC +
+   geseran jam, sama dgn indDayKey yg dipakai indikator VWAP). Dihitung ULANG PENUH per sesi tiap candle (bukan
+   smoothing), sama spt EA aslinya (CalculateVWAP dipanggil tiap tick).
+   Dua mode:
+   - Mean-reversion: candle BARU TUTUP menembus tier (High>=atas / Low<=bawah) lalu close-nya balik ke DALAM tier
+     itu lagi (rejection) -> SELL/BUY. SL = tier berikutnya (lebih lebar) + buffer; TP = VWAP atau band tier-1 dalam.
+   - Breakout: candle BARU TUTUP close-nya MENEMBUS tier dgn body >= faktor x deviasi (filter displacement) ->
+     searah tembusan. SL = tier yg ditembus; TP = tier berikutnya, atau RR tetap kalau sudah tier terakhir (5).
+   Sinyal dibaca dari candle yg baru tutup, eksekusi di OPEN candle berikutnya (sama spt strategi EA EMA Color
+   Reverse -- EA asli bereaksi persis saat candle baru mulai). Maksimal SATU posisi tag 'VWAPEA' (apa pun arahnya);
+   beda dari EMA Color Reverse, EA ini TIDAK membalik otomatis -- posisi hanya keluar lewat SL/TP sendiri (OpenTrade
+   di EA asli juga tidak pernah menutup posisi lawan). TIDAK diport: filter jam trading (bawaan nonaktif), tutup
+   semua posisi di akhir sesi (bawaan nonaktif), MagicNumber/Slippage-input (Slippage pakai model biaya backtest). */
+const BT_VWAPEA_DEV = [1.28, 2.01, 2.51, 3.09, 4.01];
+function btVwapEaCalc(candles, anchorHour){
+  const n = candles.length;
+  const vwap = new Array(n), dev = new Array(n), up = [], dn = [];
+  for(let t=0;t<5;t++){ up.push(new Array(n)); dn.push(new Array(n)); }
+  let day = null, pv = 0, vv = 0, ppv = 0;
+  for(let i=0;i<n;i++){
+    const c = candles[i], d = indDayKey(c.t, anchorHour);
+    if(d!==day){ day = d; pv = 0; vv = 0; ppv = 0; }
+    const px = (c.h+c.l)/2, w = c.v>0 ? c.v : 1;
+    pv += px*w; vv += w; ppv += px*px*w;
+    const m = pv/vv, sd = Math.sqrt(Math.max(ppv/vv - m*m, 0));
+    vwap[i] = m; dev[i] = sd;
+    for(let t=0;t<5;t++){ up[t][i] = m + BT_VWAPEA_DEV[t]*sd; dn[t][i] = m - BT_VWAPEA_DEV[t]*sd; }
+  }
+  return { vwap, dev, up, dn };
+}
+function btVwapEaNormalize(raw){
+  raw = raw || {};
+  const num = (v, d, lo, hi, int)=>{ let x = (v==null || v==='') ? NaN : Number(v); if(!isFinite(x)) x = d; if(int) x = Math.round(x); return clamp(x, lo, hi); };
+  const sizeMode = raw.sizeMode==='lot' ? 'lot' : 'risk';
+  return {
+    mode: raw.mode==='breakout' ? 'breakout' : 'mr',
+    entryTier: num(raw.entryTier, 2, 1, 5, true),
+    breakoutTier: num(raw.breakoutTier, 1, 1, 5, true),
+    tpTarget: raw.tpTarget==='inner' ? 'inner' : 'vwap',
+    dispFactor: num(raw.dispFactor, 0.25, 0, 10, false),
+    slBufTicks: num(raw.slBufTicks, 20, 0, 1e6, true),
+    fixedRR: num(raw.fixedRR, 1.5, 0.1, 50, false),
+    sizeMode,
+    sizeVal: num(raw.sizeVal, sizeMode==='lot' ? 0.10 : 1, sizeMode==='lot' ? 0.001 : 0.01, sizeMode==='lot' ? 1000 : 100, false),
+    anchorHour: num(raw.anchorHour, 0, 0, 23, true),
+    maxSpreadPoints: num(raw.maxSpreadPoints, 0, 0, 1e7, true),
+  };
+}
+function btVwapEaInit(sim, raw){
+  const p = btVwapEaNormalize(raw);
+  if(p.sizeMode==='lot') p.sizeVal = Math.max(sim.spec.minLot, btRoundLot(sim, p.sizeVal));
+  return { p, bands: btVwapEaCalc(sim.candles, p.anchorHour), entries:0 };
+}
+// Port CheckMeanReversion()/CheckBreakout(): sinyal dari candle ke-k yg SUDAH TUTUP -> {side, tier} | null.
+function btVwapEaSignal(sim, k){
+  const ve = sim.vwapea, p = ve.p, b = ve.bands, c = sim.candles[k];
+  if(p.mode==='mr'){
+    const tier = p.entryTier-1, up = b.up[tier][k], dn = b.dn[tier][k];
+    if(c.h>=up && c.c<up) return { side:'sell', tier };
+    if(c.l<=dn && c.c>dn) return { side:'buy', tier };
+    return null;
+  }
+  const tier = p.breakoutTier-1, up = b.up[tier][k], dn = b.dn[tier][k];
+  const body = Math.abs(c.c-c.o), minBody = p.dispFactor*b.dev[k];
+  if(c.c>up && body>=minBody) return { side:'buy', tier };
+  if(c.c<dn && body>=minBody) return { side:'sell', tier };
+  return null;
+}
+// Port SL/TP di OpenTrade(): band & vwap dipakai pd indeks k YANG SAMA dgn sinyal (konsisten, tanpa campur candle
+// yg baru mulai -- beda kecil dr EA asli yg memakai band "saat ini", krn band candle baru yg br mulai praktis sama
+// dgn band candle k yg baru tutup, kecuali tepat di batas sesi).
+function btVwapEaLevels(sim, k, sig, fill){
+  const ve = sim.vwapea, p = ve.p, b = ve.bands, buf = p.slBufTicks*sim.tick, tier = sig.tier;
+  let sl, tp;
+  if(p.mode==='mr'){
+    const slTier = Math.min(tier+1, 4);
+    if(sig.side==='sell'){ sl = b.up[slTier][k] + buf; tp = p.tpTarget==='vwap' ? b.vwap[k] : b.dn[0][k]; }
+    else { sl = b.dn[slTier][k] - buf; tp = p.tpTarget==='vwap' ? b.vwap[k] : b.up[0][k]; }
+  } else if(sig.side==='buy'){
+    sl = b.up[tier][k] - buf; tp = tier+1<5 ? b.up[tier+1][k] : fill + (fill-sl)*p.fixedRR;
+  } else {
+    sl = b.dn[tier][k] + buf; tp = tier+1<5 ? b.dn[tier+1][k] : fill - (sl-fill)*p.fixedRR;
+  }
+  return { sl: btTickRound(sim, sl), tp: btTickRound(sim, tp) };
+}
+// Dipanggil di awal btStep (spt btEaStep): sinyal dari candle sim.idx-1, eksekusi di open candle sim.idx.
+// Beda dr EMA Color Reverse: TIDAK membalik -- kalau sudah ada posisi tag 'VWAPEA' (arah apa pun), tidak berbuat
+// apa-apa; posisi cuma keluar lewat SL/TP (btCheckExits yg sudah ada, generik per-tag).
+function btVwapEaStep(sim, c){
+  const ve = sim.vwapea, p = ve.p;
+  if(sim.positions.some(x=>x.tag==='VWAPEA')) return;
+  if(sim.idx-1 < 0) return;
+  const k = sim.idx-1;
+  const sig = btVwapEaSignal(sim, k);
+  if(!sig) return;
+  if(sim.idx >= sim.candles.length-1) return; // candle terakhir: akan ditutup paksa 'AKHIR DATA', tak perlu entri baru
+  if(p.maxSpreadPoints>0 && sim.cfg.spreadTicks>p.maxSpreadPoints){ btLog(sim, 'VWAPEA', 'Entri dilewati: spread '+sim.cfg.spreadTicks+' tick > batas '+p.maxSpreadPoints); return; }
+  const mid = c.o, fill = btEntryFill(sim, sig.side, mid);
+  const { sl, tp } = btVwapEaLevels(sim, k, sig, fill);
+  if(btLevelError(sig.side, fill, sl, tp)) return;
+  let size;
+  if(p.sizeMode==='lot') size = p.sizeVal;
+  else {
+    const acc = btAccount(sim);
+    size = btSizeForRisk(sim, acc.equity*p.sizeVal/100, fill, sl);
+    const maxByMargin = btRoundLot(sim, (acc.free*0.95*sim.cfg.leverage)/btNotional(sim, 1, fill));
+    size = Math.min(size, maxByMargin);
+  }
+  if(size < sim.spec.minLot - 1e-12){ btLog(sim, 'VWAPEA', 'Entri dilewati: ukuran hasil hitung < lot minimum'); return; }
+  const r = btOpenFilled(sim, sig.side, size, fill, sl, tp, 'VWAPEA');
+  if(r.ok) ve.entries++; else btLog(sim, 'VWAPEA', 'Entri ditolak: '+r.msg);
+}
+
 /* ---- evaluasi per candle ---- */
 function btFillOrders(sim, c){
   if(!sim.orders.length) return;
@@ -3269,6 +3491,8 @@ function btStep(sim){
   if(i >= sim.candles.length){ sim.finished = true; return false; }
   const c = sim.candles[i];
   sim.idx = i;
+  if(sim.cfg.strategy==='ea') btEaStep(sim, c);
+  else if(sim.cfg.strategy==='vwapea') btVwapEaStep(sim, c);
   btFillOrders(sim, c);
   btCheckExits(sim, c);
   btStopOut(sim);
@@ -3374,22 +3598,23 @@ function btEquityCsv(sim){
 function btBuildData(o){
   const asset = ASSETS.find(a=>a.sym===o.sym);
   if(!asset) return { error:'Pair tidak dikenal.' };
-  const tfMs = o.tf==='M5' ? 300000 : 60000, ctxMs = o.tf==='M5' ? 900000 : 300000;
+  const tf = BT_TF[o.tf] ? o.tf : 'M1', tfMs = BT_TF[tf].ms, ctxMs = BT_TF[tf].ctxMs;
   const want = clamp(Math.round(o.count||BT_MAX_CANDLES), 100, BT_MAX_CANDLES);
   let src, avail, tickSize = Math.pow(10, -(asset.dp||2));
   if(o.source==='demo'){
     src = btDemoCandles(asset, tfMs, want + BT_WARMUP, o.seed||42); avail = src.length;
   } else {
     const app = APP[asset.sym];
-    src = app ? (o.tf==='M5' ? app.m5Agg.closed : app.m1Agg.closed) : [];
+    // M15/H1 blm ada buffer live sendiri -> turunkan dari M5 (histori lbh panjang drpd M1 pd jumlah candle yg sama).
+    src = app ? (tf==='M1' ? app.m1Agg.closed : tf==='M5' ? app.m5Agg.closed : btResample(app.m5Agg.closed, tfMs)) : [];
     avail = src.length;
     if(app) tickSize = tickSizeFor(app);
   }
-  if(avail < BT_MIN_CANDLES) return { error:'Data '+asset.sym+' '+o.tf+' baru '+avail+' candle (minimal '+BT_MIN_CANDLES+'). Tunggu backfill/koneksi, atau pakai Data Demo.', avail };
+  if(avail < BT_MIN_CANDLES) return { error:'Data '+asset.sym+' '+tf+' baru '+avail+' candle (minimal '+BT_MIN_CANDLES+'). Tunggu backfill/koneksi, atau pakai Data Demo.', avail };
   const n = Math.min(want, avail - 30);
   const warm = Math.min(BT_WARMUP, avail - n);
   const candles = src.slice(avail - (n+warm));
-  return { asset, tf:o.tf==='M5'?'M5':'M1', tfMs, ctxMs, candles, ctx:btResample(candles, ctxMs), start:warm, tickSize,
+  return { asset, tf, tfMs, ctxMs, candles, ctx:btResample(candles, ctxMs), start:warm, tickSize,
     source:o.source==='demo'?'demo':'market', avail, n };
 }
 
@@ -3424,7 +3649,9 @@ function btAtrNow(sim){
 
 /* ---------- konfigurasi (setup) ---------- */
 const BT_FIELDS = ['btPair','btTf','btSource','btCount','btSeed','btCapital','btLeverage','btStopOut','btSpread','btSlip','btCommPct','btCommLot','btSameBar','btRisk',
-  'btSizeMode','btSizeVal','btSlMode','btSlVal','btTpMode','btTpVal'];
+  'btSizeMode','btSizeVal','btSlMode','btSlVal','btTpMode','btTpVal',
+  'btStrategy','btEaPeriod','btEaSrc','btEaLots','btEaSl','btEaTp','btEaMaxSpread',
+  'btVeMode','btVeEntryTier','btVeBreakoutTier','btVeTpTarget','btVeDisp','btVeSlBuf','btVeRR','btVeSizeMode','btVeSizeVal','btVeAnchor','btVeMaxSpread'];
 // Jenis order & harga order TIDAK dipersistenkan (selalu mulai dari Market) tapi tetap perlu event preview.
 const BT_EXTRA = ['btOtype','btOprice'];
 const BT_CHECKS = ['btAuto','btTimeStop'];
@@ -3448,6 +3675,13 @@ function btApplySpecDefaults(){
   btEl('btSpread').value = sp.spreadTicks; btEl('btCommPct').value = sp.commPct; btEl('btCommLot').value = sp.commLot;
   btEl('btSizeVal').step = btEl('btSizeMode').value==='lot' ? sp.lotStep : 'any';
 }
+// Tampilkan blok opsi strategi yg aktif (sinyal mesin / EA EMA / EA VWAP) sesuai pilihan btStrategy.
+function btStrategySync(){
+  const mode = btEl('btStrategy').value;
+  btEl('btStratEngine').style.display = mode==='engine' ? '' : 'none';
+  btEl('btStratEa').style.display = mode==='ea' ? '' : 'none';
+  btEl('btStratVwapEa').style.display = mode==='vwapea' ? '' : 'none';
+}
 function btNumVal(id, dflt){ const v = parseFloat(btEl(id).value); return isFinite(v) ? v : dflt; }
 function btReadSetup(){
   return {
@@ -3460,6 +3694,20 @@ function btReadSetup(){
       commPct:Math.max(0, btNumVal('btCommPct', 0)), commLot:Math.max(0, btNumVal('btCommLot', 0)),
       sameBar:btEl('btSameBar').value, autoTrade:btEl('btAuto').checked, timeStop:btEl('btTimeStop').checked,
       riskPct:clamp(btNumVal('btRisk', 1), 0.01, 100),
+      strategy: (()=>{ const v = btEl('btStrategy').value; return (v==='ea' || v==='vwapea') ? v : 'engine'; })(),
+      ea:{
+        emaPeriod:Math.round(btNumVal('btEaPeriod', 50)), src:btEl('btEaSrc').value,
+        lots:Math.max(0, btNumVal('btEaLots', 0.10)), slPoints:Math.max(0, Math.round(btNumVal('btEaSl', 0))),
+        tpPoints:Math.max(0, Math.round(btNumVal('btEaTp', 0))), maxSpreadPoints:Math.max(0, Math.round(btNumVal('btEaMaxSpread', 0))),
+      },
+      vwapea:{
+        mode: btEl('btVeMode').value==='breakout' ? 'breakout' : 'mr', entryTier:Math.round(btNumVal('btVeEntryTier', 2)),
+        breakoutTier:Math.round(btNumVal('btVeBreakoutTier', 1)), tpTarget: btEl('btVeTpTarget').value==='inner' ? 'inner' : 'vwap',
+        dispFactor:Math.max(0, btNumVal('btVeDisp', 0.25)), slBufTicks:Math.max(0, Math.round(btNumVal('btVeSlBuf', 20))),
+        fixedRR:Math.max(0.1, btNumVal('btVeRR', 1.5)), sizeMode: btEl('btVeSizeMode').value==='lot' ? 'lot' : 'risk',
+        sizeVal:Math.max(0, btNumVal('btVeSizeVal', 1)), anchorHour:clamp(Math.round(btNumVal('btVeAnchor', 0)), 0, 23),
+        maxSpreadPoints:Math.max(0, Math.round(btNumVal('btVeMaxSpread', 0))),
+      },
     },
   };
 }
@@ -3495,7 +3743,7 @@ function btLoad(opts){
     BT.sim = null; btShowMsg(data.error, 'bad'); btRender(); return false;
   }
   btSaveCfg();
-  BT.sim = btCreateSim({ asset:data.asset, tfMs:data.tfMs, ctxMs:data.ctxMs, candles:data.candles, ctx:data.ctx,
+  BT.sim = btCreateSim({ asset:data.asset, tf:data.tf, tfMs:data.tfMs, ctxMs:data.ctxMs, candles:data.candles, ctx:data.ctx,
     start:data.start, tickSize:data.tickSize, cfg:su.cfg, settings:SETTINGS, source:data.source });
   BT.finishShown = false; BT.hoverIdx = null;
   BT.indCache.clear(); BT.indRes = new Map(); BT.indErr = {};
@@ -3804,10 +4052,14 @@ function btReportHtml(sim){
     + stat('Rata-rata MAE', btMoney(s.avgMAE), 'bt-neg', 'Rugi mengambang terburuk rata-rata selama trade') + stat('Rata-rata MFE', btMoney(s.avgMFE), 'bt-pos', 'Untung mengambang terbaik rata-rata selama trade')
     + stat('Setoran / Penarikan', btMoney(s.deposited)+' / '+btMoney(s.withdrawn))
     + '</div></div>'
-    + '<div class="an-section"><h4>Per Arah &amp; Sinyal Mesin</h4>'
+    + '<div class="an-section"><h4>Per Arah'+(sim.cfg.strategy==='engine'?' &amp; Sinyal Mesin':'')+'</h4>'
     + '<table class="an-table"><thead><tr><th>Arah</th><th>Trade</th><th>Win rate</th><th>P/L bersih</th></tr></thead><tbody>'
     + '<tr><td>Long (BUY)</td>'+side(s.long)+'</tr><tr><td>Short (SELL)</td>'+side(s.short)+'</tr></tbody></table>'
-    + '<div class="bt-muted" style="margin-top:6px">Sinyal CONFIRMED dari mesin: '+s.signals+' · dieksekusi: '+s.signalsTraded+(sim.cfg.autoTrade?'':' (auto-trade mati)')+'. Mesin memakai kalibrasi aktif (⚙ Kalibrasi).</div></div>';
+    + (sim.cfg.strategy==='ea'
+      ? '<div class="bt-muted" style="margin-top:6px">Strategi: EA EMA Color Reverse — EMA('+sim.ea.p.emaPeriod+', '+sim.ea.p.src+'), lot tetap '+sim.ea.p.lots+(sim.ea.p.slPoints>0?', SL '+sim.ea.p.slPoints+' tick':', tanpa SL')+(sim.ea.p.tpPoints>0?', TP '+sim.ea.p.tpPoints+' tick':', tanpa TP')+(sim.ea.p.maxSpreadPoints>0?', spread maks '+sim.ea.p.maxSpreadPoints+' tick':'')+'. Pembalikan arah: '+sim.ea.flips+' · entri dieksekusi: '+sim.ea.entries+'. Sinyal dibaca dari candle yang baru tutup, eksekusi di open candle berikutnya (selalu pegang satu posisi, berbalik langsung saat warna EMA berubah).</div></div>'
+      : sim.cfg.strategy==='vwapea'
+      ? '<div class="bt-muted" style="margin-top:6px">Strategi: EA VWAP Stdev Bands — mode '+(sim.vwapea.p.mode==='mr'?'Mean-Reversion':'Breakout')+', tier entri '+(sim.vwapea.p.mode==='mr'?sim.vwapea.p.entryTier:sim.vwapea.p.breakoutTier)+', reset sesi jam '+sim.vwapea.p.anchorHour+' UTC, ukuran '+(sim.vwapea.p.sizeMode==='lot'?sim.vwapea.p.sizeVal+' lot tetap':sim.vwapea.p.sizeVal+'% risiko/trade')+'. Entri dieksekusi: '+sim.vwapea.entries+'. Sinyal dari candle yang baru tutup, eksekusi di open candle berikutnya; maksimal 1 posisi, tidak membalik otomatis (keluar hanya lewat SL/TP sendiri).</div></div>'
+      : '<div class="bt-muted" style="margin-top:6px">Sinyal CONFIRMED dari mesin: '+s.signals+' · dieksekusi: '+s.signalsTraded+(sim.cfg.autoTrade?'':' (auto-trade mati)')+'. Mesin memakai kalibrasi aktif (⚙ Kalibrasi).</div></div>');
 }
 
 /* ---- grafik harga ---- */
@@ -4004,12 +4256,15 @@ function btInitUi(){
   const sel = btEl('btPair');
   sel.innerHTML = ASSETS.map(a=>'<option value="'+a.sym+'">'+a.sym+' — '+a.name+'</option>').join('');
   sel.value = ACTIVE_SYM;
+  btEl('btEaSrc').innerHTML = IND_SOURCES.map(o=>'<option value="'+o.v+'">'+o.l+'</option>').join('');
   btApplySpecDefaults();
   btLoadCfg();
   btEl('btSeedWrap').style.display = btEl('btSource').value==='demo' ? '' : 'none';
+  btStrategySync();
   btEl('btCount').max = BT_MAX_CANDLES;
   btEl('btPair').addEventListener('change', ()=>{ btApplySpecDefaults(); btSaveCfg(); });
   btEl('btSource').addEventListener('change', ()=>{ btEl('btSeedWrap').style.display = btEl('btSource').value==='demo' ? '' : 'none'; btSaveCfg(); });
+  btEl('btStrategy').addEventListener('change', btStrategySync);
   BT_FIELDS.concat(BT_CHECKS, BT_EXTRA).forEach(id=>{
     const e = btEl(id); if(!e) return;
     e.addEventListener('change', ()=>{ btSaveCfg(); btApplyLiveCfg(); if(BT.sim) btRender(); });
