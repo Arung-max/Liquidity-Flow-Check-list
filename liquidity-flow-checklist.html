@@ -256,7 +256,7 @@
   .an-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
   .an-tools label{font-size:11.5px;color:var(--mut);display:flex;align-items:center;gap:5px;}
   /* ---------- Backtest ---------- */
-  .modal-panel.bt-panel{width:min(1500px,98vw);height:94vh;max-height:94vh;}
+  .modal-panel.bt-panel{width:min(1800px,99vw);height:97vh;max-height:97vh;}
   .bt-body{padding:12px 16px;}
   .bt-setup{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:flex-start;margin-bottom:10px;padding:10px 12px;
     background:var(--panel);border:1px solid var(--line);border-radius:10px;}
@@ -270,13 +270,13 @@
   .bt-card input[type="number"],.bt-card select{width:100%;}
   .bt-grp input[type="checkbox"]{width:15px;height:15px;accent-color:var(--blue);}
   .bt-actions{display:flex;gap:10px;align-items:center;margin:0 0 10px;}
-  .bt-main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:12px;align-items:start;}
+  .bt-main{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:12px;align-items:start;}
   .bt-left,.bt-right{display:flex;flex-direction:column;gap:12px;min-width:0;}
   .bt-charthead{display:flex;gap:8px 10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;font-size:12px;}
   .bt-chip{font-family:var(--mono);font-size:10.5px;padding:2px 8px;border-radius:20px;background:var(--panel3);border:1px solid var(--line);color:var(--mut);}
   .bt-hover{font-family:var(--mono);font-size:10.5px;color:var(--mut);margin-left:auto;}
-  #btChart{width:100%;height:380px;display:block;background:#080B10;border:1px solid var(--line-soft);border-radius:8px;cursor:crosshair;touch-action:none;}
-  #btEq{width:100%;height:320px;display:block;background:#080B10;border:1px solid var(--line-soft);border-radius:8px;}
+  #btChart{width:100%;height:520px;display:block;background:#080B10;border:1px solid var(--line-soft);border-radius:8px;cursor:crosshair;touch-action:none;}
+  #btEq{width:100%;height:400px;display:block;background:#080B10;border:1px solid var(--line-soft);border-radius:8px;}
   .bt-replay{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;}
   .bt-replay select{background:var(--panel3);border:1px solid var(--line);color:var(--text);padding:5px 6px;border-radius:6px;font:12px var(--mono);}
   .bt-progress{flex:1;min-width:80px;height:6px;background:#1B212B;border-radius:4px;overflow:hidden;}
@@ -341,6 +341,11 @@
   .ind-cat{display:flex;gap:8px;align-items:flex-start;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line-soft);}
   .ind-cat-txt{min-width:0;} .ind-cat-txt .bt-muted{margin-top:2px;line-height:1.4;}
   #btIndSearch{width:100%;background:var(--panel3);border:1px solid var(--line);color:var(--text);padding:6px 8px;border-radius:6px;font:12px var(--mono);}
+  /* ---------- Indikator (Chart Live, 6j) -- reuse styling .ind-* dari blok di atas, cuma posisi panel beda ---------- */
+  .live-indpanel{position:fixed;top:72px;right:16px;width:340px;max-height:82vh;overflow-y:auto;background:var(--panel);
+    border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:11.5px;z-index:40;box-shadow:0 10px 30px rgba(0,0,0,.45);}
+  #liveIndSearch{width:100%;background:var(--panel3);border:1px solid var(--line);color:var(--text);padding:6px 8px;border-radius:6px;font:12px var(--mono);}
+  @media (max-width:900px){ .live-indpanel{left:10px;right:10px;width:auto;top:60px;max-height:70vh;} }
   .ind-help{margin-top:12px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);padding:6px 10px;color:var(--mut);}
   .ind-help summary{cursor:pointer;color:var(--text);font-weight:600;font-size:11.5px;}
   .ind-help ol{margin:8px 0 4px;padding-left:18px;line-height:1.55;} .ind-help p{margin:6px 0;line-height:1.5;}
@@ -639,6 +644,28 @@
     </div>
   </div>
 </div>
+
+<aside class="live-indpanel" id="liveIndPanel" style="display:none">
+  <div class="ind-hd"><b>📈 Indikator — Chart Live</b><button class="btn bt-mini" id="liveIndClose" title="Tutup panel">✕</button></div>
+  <div class="ind-h"><span id="liveIndActiveH">Aktif di chart</span><span class="grow"></span>
+    <button class="btn bt-mini" id="liveIndClear" title="Hapus semua indikator dari chart pair ini">Hapus semua</button></div>
+  <div id="liveIndActive"></div>
+  <div class="bt-ordermsg" id="liveIndMsg"></div>
+  <div class="ind-h">Tambah indikator</div>
+  <input type="search" id="liveIndSearch" placeholder="Cari… (mis. EMA, RSI, likuiditas)" autocomplete="off">
+  <div id="liveIndCatalog"></div>
+  <details class="ind-help" id="liveIndHelp">
+    <summary>❓ Cara menambah &amp; memakai indikator</summary>
+    <ol>
+      <li>Di daftar <b>Tambah indikator</b>, klik <b>＋ Tambah</b> — langsung tampil di chart pair yang sedang dibuka.</li>
+      <li>Klik <b>⚙</b> pada indikator aktif (di panel ini atau di chip atas chart) untuk mengubah parameter. Chart ikut berubah seketika.</li>
+      <li><b>👁</b> sembunyikan/tampilkan, <b>▲▼</b> ubah urutan gambar, <b>✕</b> hapus. Indikator yang sama boleh ditambah berkali-kali.</li>
+      <li>Daftar indikator tersimpan TERPISAH per pair (maksimal 12 indikator aktif per pair).</li>
+    </ol>
+    <p>Liquidity Detector, Level Mesin, dan VWAP ± SD <b>sudah tampil otomatis</b> di chart ini di luar panel indikator — menambahkannya di sini akan menampilkan salinan kedua, bukan duplikat tersembunyi.</p>
+    <p>Daftar jenis indikator persis sama dengan yang ada di Backtest (📈 Indikator di modal Backtest) — satu daftar <code>BT_INDICATORS</code> dipakai bersama. Panduan &amp; contoh menambah jenis baru ada di blueprint §12.</p>
+  </details>
+</aside>
 
 <script>
 // Auto-reload dev: cuma aktif kalau dibuka lewat server lokal (http://), BUKAN file:// --
@@ -2048,10 +2075,18 @@ function initAsset(asset){
     // chartTf = timeframe chart (M1/M5); tiap TF punya jendela sendiri (chartViews), dan
     // app.chartView selalu menunjuk jendela TF yg aktif supaya kode drag/zoom tidak perlu tahu TF.
     chartTf:'M1' };
-  app.chartViews = { M1:{ follow:true, endIdx:0, count:500 }, M5:{ follow:true, endIdx:0, count:300 } };
+  app.chartViews = { M1:{ follow:true, endIdx:0, count:500 }, M5:{ follow:true, endIdx:0, count:300 },
+    M15:{ follow:true, endIdx:0, count:200 }, M30:{ follow:true, endIdx:0, count:150 }, H1:{ follow:true, endIdx:0, count:120 } };
   app.chartView = app.chartViews.M1;
   app.m1Agg = makeAggregator(CFG.m1Sec, AGG_CAP, ()=>{ recompute(app); });
   app.m5Agg = makeAggregator(CFG.m5Sec, AGG_CAP, null);
+  // Indikator chart live (6j): daftar aktif PER PAIR (beda dari BT.inds yg satu daftar global di backtest),
+  // dimuat dari localStorage per simbol; bawaan KOSONG (lihat komentar liveIndLoad kenapa bukan indDefaultList()).
+  app.inds = liveIndLoad(asset.sym);
+  app.indOpen = new Set();
+  app.indRes = new Map();
+  app.indErr = {};
+  app.indErrSeen = new Set();
   APP[asset.sym] = app;
   return app;
 }
@@ -4066,7 +4101,7 @@ function btReportHtml(sim){
 // Tinggi kanvas = panel harga (BT_CHART_H) + satu baris panel bawah per indikator 'sub' yg tampil. Indikator
 // digambar lewat registry BT_INDICATORS (6g); lapisan 'under' di bawah candle, 'over' di atasnya. Tiap
 // indikator dibungkus try/catch: satu indikator rusak hanya menandai chip-nya merah, chart tetap jalan.
-const BT_CHART_H = 380, BT_SUB_H = 84, BT_SUB_GAP = 6, BT_TIME_H = 16, BT_GUTTER = 66;
+const BT_CHART_H = 520, BT_SUB_H = 84, BT_SUB_GAP = 6, BT_TIME_H = 16, BT_GUTTER = 66;
 function btDrawChart(){
   const cv = btEl('btChart'), sim = BT.sim;
   if(!cv || !sim) return;
@@ -5652,14 +5687,238 @@ const DRAG = { active:false, startX:0, startEndIdx:0, startTotal:0 };
 let chartRafPending = false;
 // Seri candle utk chart sesuai timeframe aktif (M1/M5). Candle M1 dan M5 sama-sama membawa vwap/vstd (histori lewat
 // rebuildVwap, live lewat ingestTrade), jadi kurva VWAP tergambar di kedua timeframe.
-function chartSeries(app){ return app.chartTf==='M5' ? app.m5Agg.series() : app.m1Agg.series(); }
+// M15/M30/H1 BELUM punya aggregator live sendiri -- diturunkan on-demand via resample dari buffer M5 (spt M15/H1
+// di backtest "Data pasar", lihat btBuildData), lalu ditandai VWAP spt m1/m5 supaya kurva VWAP tetap tampil.
+// series() M5 ikut membawa candle yg sedang terbentuk, jadi hasil resample-nya juga "hidup" (bar terakhir tumbuh
+// tiap kali M5 di dalamnya bertambah) walau tanpa aggregator terpisah.
+const LIVE_HTF = { M15:900000, M30:1800000, H1:3600000 };
+function chartSeries(app){
+  if(app.chartTf==='M5') return app.m5Agg.series();
+  if(!LIVE_HTF[app.chartTf]) return app.m1Agg.series();
+  const s = btResample(app.m5Agg.series(), LIVE_HTF[app.chartTf]);
+  vwapTagCandles(s);
+  return s;
+}
+
+/* ============================== 6j. CHART LIVE: PANEL INDIKATOR ==============================
+   Sama seperti panel Indikator di backtest (6g/6h) -- dipakai ULANG apa adanya: BT_INDICATORS (daftar jenis),
+   indMakeInst/indSerialize/indDeserialize/indNormalizeParams/indNormParam (6g, generik -- tak menyentuh state
+   backtest), primitif gambar indPath/indBand/indHLine/indTag/indFlushTags/indMinMax/indPctOf/indFmtPct (6g,
+   generik thd `env` apa pun), dan btIndParamHtml (6h, cuma baca inst.params). TIDAK ADA satu pun kode backtest
+   (awalan BT. atau bt) yg diubah utk fitur ini.
+   Yang BERBEDA dari backtest (sengaja ditulis baru, bukan disalin mentah):
+   - Daftar aktif PER PAIR (app.inds/indOpen/indRes/indErr*), bukan satu daftar global spt BT.inds -- disimpan
+     per simbol (localStorage lfc.live.inds.<SYM>). Bawaan KOSONG (bukan indDefaultList()): Liquidity Detector/
+     Level Mesin/VWAP±SD SUDAH tampil otomatis di chart ini di luar sistem indikator (lihat drawChart) --
+     menambahkannya lewat panel ini akan menampilkan salinan kedua, bukan duplikat tersembunyi.
+   - chartSeries(app) BERTUMBUH & candle terakhirnya BERUBAH tiap tick -- beda dari sim.candles backtest yg
+     sudah lengkap/tetap sejak awal run (makanya btIndResult sah di-cache per sim+params). Di sini hasil
+     indikator TIDAK di-cache lintas-frame -- dihitung ulang tiap gambar (liveIndCalc); array dibatasi
+     BACKFILL_CANDLES/AGG_CAP jadi murah.
+   - Panel (pencarian + form parameter, #liveIndPanel) STATIS di luar #detailBody (markup di akhir body,
+     sebelum <script>) -- SENGAJA tidak ikut dibangun ulang oleh renderDetail() yg sering dipanggil (tiap
+     tick), spy fokus & kursor ketik tidak putus terus-menerus (alasan sama dgn kerangka modal backtest yg
+     statis, lihat komentar di atas bt-setup/6f). Tombol toggle & chip legend AMAN ikut dibangun ulang tiap
+     render (cuma tombol, tanpa input) -- listenernya dipasang SEKALI lewat delegasi klik ke #detailBody
+     (liveIndInit), bukan dipasang ulang tiap render spt .tf-btn.
+*/
+const LIVE_IND = { panel:false, search:'', lastSym:null };
+const LIVE_SUB_H = 84, LIVE_SUB_GAP = 6;
+function liveIndStoreKey(sym){ return 'lfc.live.inds.'+sym; }
+function liveIndLoad(sym){
+  let list = null;
+  try{ const t = localStorage.getItem(liveIndStoreKey(sym)); if(t!=null) list = indDeserialize(t); }catch(e){}
+  return list || [];
+}
+function liveIndSave(app){ try{ localStorage.setItem(liveIndStoreKey(app.asset.sym), indSerialize(app.inds)); }catch(e){} }
+function liveIndColor(inst){ const p = inst.params; return p.color || p.resColor || '#8893A3'; }
+function liveIndActive(app){
+  const out = [];
+  app.inds.forEach(inst=>{ const def = BT_INDICATORS[inst.type]; if(inst.visible && def) out.push({ inst, def }); });
+  return out;
+}
+function liveIndCalc(app, inst, def, candles, env){
+  if(def.mode==='frame') return def.frame(candles, inst.params, env);
+  return def.calc(candles, inst.params);
+}
+function liveIndFail(app, a, e){
+  const m = (e && e.message) || String(e), key = a.inst.uid+'|'+m;
+  if(!app.indErrSeen.has(key)){ app.indErrSeen.add(key); console.error('[indikator live '+a.inst.type+']', e); }
+  app.indErr[a.inst.uid] = m;
+}
+
+/* ---- panel: indikator aktif + katalog ---- */
+function liveIndActiveHtml(app){
+  if(!app.inds.length) return '<div class="bt-muted ind-empty">Belum ada indikator aktif — pilih dari daftar di bawah.</div>';
+  const n = app.inds.length;
+  return app.inds.map((inst, k)=>{
+    const def = BT_INDICATORS[inst.type], open = app.indOpen.has(inst.uid);
+    return '<div class="ind-item'+(inst.visible?'':' off')+'" data-uid="'+inst.uid+'">'
+      + '<div class="ind-row"><i style="background:'+liveIndColor(inst)+'"></i><b class="ind-title">'+def.title(inst.params)+'</b>'
+      + '<span class="ind-tag">'+(def.pane==='sub'?'panel bawah':'di harga')+'</span><span class="grow"></span>'
+      + '<button data-ia="vis" title="'+(inst.visible?'Sembunyikan':'Tampilkan')+'">'+(inst.visible?'👁':'🚫')+'</button>'
+      + '<button data-ia="cfg" class="'+(open?'on':'')+'" title="Atur parameter">⚙</button>'
+      + '<button data-ia="up" title="Naikkan urutan"'+(k===0?' disabled':'')+'>▲</button>'
+      + '<button data-ia="down" title="Turunkan urutan"'+(k===n-1?' disabled':'')+'>▼</button>'
+      + '<button data-ia="del" title="Hapus indikator">✕</button></div>'
+      + (open ? '<div class="ind-params">'+def.params.map(s=>btIndParamHtml(inst, s)).join('')
+          + '<button class="btn bt-mini" data-ia="reset" title="Kembalikan semua parameter indikator ini ke nilai bawaan">↺ Parameter bawaan</button></div>' : '')
+      + '</div>';
+  }).join('');
+}
+function liveIndCatalogHtml(){
+  const q = (LIVE_IND.search||'').trim().toLowerCase();
+  let html = '';
+  IND_GROUPS.forEach(gr=>{
+    const items = Object.keys(BT_INDICATORS).filter(t=>{
+      const d = BT_INDICATORS[t];
+      return d.group===gr && (!q || (d.name+' '+gr+' '+d.desc+' '+t).toLowerCase().indexOf(q)>=0);
+    });
+    if(!items.length) return;
+    html += '<div class="ind-grp">'+gr+'</div>' + items.map(t=>{
+      const d = BT_INDICATORS[t];
+      return '<div class="ind-cat"><div class="ind-cat-txt"><b>'+d.name+'</b> <span class="ind-tag">'+(d.pane==='sub'?'panel bawah':'di harga')+'</span>'
+        + '<div class="bt-muted">'+d.desc+'</div></div><button class="btn bt-mini" data-iadd="'+t+'">＋ Tambah</button></div>';
+    }).join('');
+  });
+  return html || '<div class="bt-muted">Tidak ada indikator yang cocok dengan pencarian.</div>';
+}
+function liveIndRenderPanel(app){
+  const a = document.getElementById('liveIndActive'), c = document.getElementById('liveIndCatalog');
+  if(!a || !c) return;
+  a.innerHTML = liveIndActiveHtml(app);
+  c.innerHTML = liveIndCatalogHtml();
+  const hh = document.getElementById('liveIndActiveH'); if(hh) hh.textContent = 'Aktif di chart ('+app.inds.length+'/'+IND_MAX_ACTIVE+')';
+}
+
+/* ---- legend chip (dibangun ulang tiap renderDetail -- cuma tombol, aman thd fokus) ---- */
+function liveIndLegendHtml(app){
+  return app.inds.map(inst=>{
+    const def = BT_INDICATORS[inst.type];
+    return '<span class="ind-chip'+(inst.visible?'':' off')+'" data-uid="'+inst.uid+'"><i style="background:'+liveIndColor(inst)+'"></i>'
+      + '<span class="in">'+def.title(inst.params)+'</span><span class="iv"></span><span class="ip"></span>'
+      + '<button data-ia="vis" title="'+(inst.visible?'Sembunyikan':'Tampilkan')+'">'+(inst.visible?'👁':'🚫')+'</button>'
+      + '<button data-ia="cfg" title="Atur parameter">⚙</button><button data-ia="del" title="Hapus indikator">✕</button></span>';
+  }).join('') || '<span class="bt-muted">Belum ada indikator — klik "📈 Indikator" untuk menambah.</span>';
+}
+function liveIndLegendValues(app, idx, lastClose){
+  document.querySelectorAll('#liveIndLegend .ind-chip').forEach(ch=>{
+    const uid = ch.getAttribute('data-uid'), inst = app.inds.find(x=>x.uid===uid), el = ch.querySelector('.iv');
+    if(!inst || !el) return;
+    const def = BT_INDICATORS[inst.type], res = app.indRes.get(uid);
+    let t = '';
+    try{ if(res!=null && def.legend) t = def.legend(res, inst.params, idx, app.asset.dp) || ''; }catch(e){}
+    if(app.indErr[uid]) t = '⚠ '+app.indErr[uid];
+    ch.classList.toggle('err', !!app.indErr[uid]);
+    if(el.textContent !== t) el.textContent = t;
+    const ip = ch.querySelector('.ip');
+    if(ip){
+      let pt = '', cls = 'ip';
+      if(res!=null && def.pctRef && !app.indErr[uid] && inst.params.showPct!==false){
+        let ref = null; try{ ref = def.pctRef(res, inst.params, idx); }catch(e){}
+        const pct = indPctOf(lastClose, ref);
+        if(pct!=null){ pt = indFmtPct(pct); cls = 'ip '+(pct>=0 ? 'bt-pos' : 'bt-neg'); }
+      }
+      if(ip.textContent !== pt) ip.textContent = pt;
+      if(ip.className !== cls) ip.className = cls;
+    }
+  });
+}
+
+/* ---- aksi ---- */
+function liveIndMsg(text, kind){
+  const e = document.getElementById('liveIndMsg'); if(!e) return;
+  e.textContent = text || ''; e.className = 'bt-ordermsg '+(kind||'');
+  clearTimeout(LIVE_IND._msgT);
+  if(text) LIVE_IND._msgT = setTimeout(()=>{ e.textContent = ''; }, 5000);
+}
+function liveIndChanged(structural){
+  const app = APP[ACTIVE_SYM]; if(!app) return;
+  liveIndSave(app);
+  if(structural) liveIndRenderPanel(app);
+  requestChartRedraw();
+}
+function liveIndTogglePanel(force){
+  LIVE_IND.panel = force==null ? !LIVE_IND.panel : !!force;
+  const p = document.getElementById('liveIndPanel'); if(p) p.style.display = LIVE_IND.panel ? 'block' : 'none';
+  const btn = document.getElementById('liveIndBtn'); if(btn) btn.classList.toggle('on', LIVE_IND.panel);
+  const app = APP[ACTIVE_SYM];
+  if(LIVE_IND.panel && app) liveIndRenderPanel(app);
+}
+function liveIndAdd(type){
+  const app = APP[ACTIVE_SYM]; if(!app || !BT_INDICATORS[type]) return;
+  if(app.inds.length>=IND_MAX_ACTIVE){ liveIndMsg('Maksimum '+IND_MAX_ACTIVE+' indikator aktif — hapus salah satu dulu.', 'bad'); return; }
+  const same = app.inds.filter(i=>i.type===type).length;
+  const inst = indMakeInst(type, null, app.inds);
+  if(same>0 && BT_INDICATORS[type].params.some(s=>s.k==='color')) inst.params.color = IND_PALETTE[same % IND_PALETTE.length];
+  app.inds.push(inst); app.indOpen.clear(); app.indOpen.add(inst.uid);
+  liveIndChanged(true);
+  liveIndMsg(BT_INDICATORS[type].name+' ditambahkan.', 'ok');
+  const el = document.getElementById('liveIndActive').querySelector('[data-uid="'+inst.uid+'"]'); if(el && el.scrollIntoView) el.scrollIntoView({ block:'nearest' });
+}
+function liveIndAction(uid, act){
+  const app = APP[ACTIVE_SYM]; if(!app) return;
+  const k = app.inds.findIndex(i=>i.uid===uid); if(k<0) return;
+  const inst = app.inds[k];
+  if(act==='vis') inst.visible = !inst.visible;
+  else if(act==='cfg'){
+    if(app.indOpen.has(uid)) app.indOpen.delete(uid); else app.indOpen.add(uid);
+    if(!LIVE_IND.panel) liveIndTogglePanel(true);
+  }
+  else if(act==='del'){ app.inds.splice(k,1); app.indOpen.delete(uid); app.indRes.delete(uid); delete app.indErr[uid]; }
+  else if(act==='up' && k>0){ app.inds[k]=app.inds[k-1]; app.inds[k-1]=inst; }
+  else if(act==='down' && k<app.inds.length-1){ app.inds[k]=app.inds[k+1]; app.inds[k+1]=inst; }
+  else if(act==='reset'){ inst.params = indNormalizeParams(inst.type, null); }
+  liveIndChanged(true);
+  if(act==='cfg'){ const el = document.getElementById('liveIndActive').querySelector('[data-uid="'+uid+'"]'); if(el && el.scrollIntoView) el.scrollIntoView({ block:'nearest' }); }
+}
+function liveIndOnParam(e){
+  const app = APP[ACTIVE_SYM]; if(!app) return;
+  const t = e.target.closest('[data-ik]'); if(!t) return;
+  const item = t.closest('[data-uid]'); if(!item) return;
+  const inst = app.inds.find(i=>i.uid===item.getAttribute('data-uid')); if(!inst) return;
+  const spec = BT_INDICATORS[inst.type].params.find(p=>p.k===t.getAttribute('data-ik')); if(!spec) return;
+  const numeric = spec.type==='int' || spec.type==='num';
+  if(numeric && e.type==='input' && !isFinite(parseFloat(t.value))) return;
+  const v = indNormParam(spec, spec.type==='bool' ? t.checked : t.value);
+  inst.params[spec.k] = v;
+  if(numeric && e.type==='change') t.value = v;
+  liveIndSave(app);
+  const ti = item.querySelector('.ind-title'); if(ti) ti.textContent = BT_INDICATORS[inst.type].title(inst.params);
+  const dot = item.querySelector('.ind-row > i'); if(dot) dot.style.background = liveIndColor(inst);
+  requestChartRedraw();
+}
+function liveIndInit(){
+  const panel = document.getElementById('liveIndPanel'); if(!panel) return;
+  document.getElementById('liveIndClose').addEventListener('click', ()=>liveIndTogglePanel(false));
+  document.getElementById('liveIndSearch').addEventListener('input', e=>{ LIVE_IND.search = e.target.value; document.getElementById('liveIndCatalog').innerHTML = liveIndCatalogHtml(); });
+  document.getElementById('liveIndClear').addEventListener('click', ()=>{ const app = APP[ACTIVE_SYM]; if(!app) return; app.inds = []; app.indOpen.clear(); liveIndChanged(true); });
+  const onClick = e=>{
+    const add = e.target.closest('[data-iadd]');
+    if(add){ liveIndAdd(add.getAttribute('data-iadd')); return; }
+    const b = e.target.closest('[data-ia]'); if(!b || b.disabled) return;
+    const host = b.closest('[data-uid]'); if(host) liveIndAction(host.getAttribute('data-uid'), b.getAttribute('data-ia'));
+  };
+  panel.addEventListener('click', onClick);
+  document.getElementById('liveIndActive').addEventListener('input', liveIndOnParam);
+  document.getElementById('liveIndActive').addEventListener('change', liveIndOnParam);
+  // Tombol toggle & chip legend ada DI DALAM #detailBody yg sering dibangun ulang -- delegasi klik ke
+  // #detailBody (elemen stabil, tak pernah diganti) spy listener tak perlu dipasang ulang tiap render.
+  const body = document.getElementById('detailBody');
+  if(body) body.addEventListener('click', e=>{
+    if(e.target.closest('#liveIndBtn')){ liveIndTogglePanel(); return; }
+    const b = e.target.closest('#liveIndLegend [data-ia]'); if(!b) return;
+    const host = b.closest('[data-uid]'); if(host) liveIndAction(host.getAttribute('data-uid'), b.getAttribute('data-ia'));
+  });
+}
+
 function requestChartRedraw(){
   if(chartRafPending) return;
   chartRafPending = true;
   requestAnimationFrame(()=>{
     chartRafPending = false;
     const app = APP[ACTIVE_SYM]; const canvas = document.getElementById('chart');
-    if(app && canvas) drawChart(canvas, chartSeries(app), app.engine, app.asset.dp, app.chartView);
+    if(app && canvas) drawChart(canvas, chartSeries(app), app.engine, app.asset.dp, app.chartView, app);
   });
 }
 
@@ -5700,12 +5959,21 @@ function wireChartInteraction(canvas, app){
   canvas.ondblclick = ()=>{ app.chartView.follow = true; requestChartRedraw(); };
 }
 
-function drawChart(canvas, m1, eng, dp, view){
+function drawChart(canvas, m1, eng, dp, view, app){
+  // Indikator (6j): subs='panel bawah' (RSI/ATR/Volume..) butuh tinggi kanvas tambahan, spt di backtest.
+  // baseWant mereplikasi formula CSS canvas#chart (clamp(360px,54vh,620px); 300px bila layar sempit) supaya
+  // tinggi panel HARGA tetap identik dgn sebelumnya saat tak ada indikator 'sub' aktif (subs.length===0).
+  const act = app ? liveIndActive(app) : [];
+  const subs = act.filter(a=>a.def.pane==='sub');
+  const baseWant = window.innerWidth<=760 ? 300 : clamp(360, window.innerHeight*0.54, 620);
+  const wantH = baseWant + subs.length*(LIVE_SUB_H+LIVE_SUB_GAP);
+  if(canvas.style.height !== wantH+'px') canvas.style.height = wantH+'px';
   const ctx = canvas.getContext('2d');
   const w = canvas.width = canvas.clientWidth * devicePixelRatio;
   const h = canvas.height = canvas.clientHeight * devicePixelRatio;
   ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
   const W=canvas.clientWidth, H=canvas.clientHeight;
+  const baseH = Math.max(H - subs.length*(LIVE_SUB_H+LIVE_SUB_GAP), 60); // tinggi panel HARGA saja (tanpa panel bawah)
   ctx.clearRect(0,0,W,H);
   const total = m1.length;
   if(total<2) { ctx.fillStyle='#4E5867'; ctx.font='12px sans-serif'; ctx.fillText('Menunggu data candle…',10,20); return; }
@@ -5732,18 +6000,36 @@ function drawChart(canvas, m1, eng, dp, view){
   const vwapBand = data.flatMap(c => c.vwap!=null
     ? [c.vwap, c.vwap+(c.vstd||0), c.vwap-(c.vstd||0), c.vwap+2*(c.vstd||0), c.vwap-2*(c.vstd||0)] : [])
     .filter(v => v>lo0-rng0 && v<hi0+rng0);
-  const hi = Math.max(hi0, ...vwapBand, ...zoneBand), lo = Math.min(lo0, ...vwapBand, ...zoneBand);
-  const pad = (hi-lo)*0.08 || hi*0.001 || 1;
-  const top=hi+pad, bot=lo-pad;
-  const y = (px)=> H - ( (px-bot)/(top-bot) )*H;
   // Jeda kosong di kanan (CHART_RIGHT_GUTTER, ~2cm @ 96 CSS px/inch) supaya candle terbaru
   // tidak mepet ke tepi kanan chart -- juga jadi tempat lega utk label VWAP di bawah.
   const plotW = Math.max(W - CHART_RIGHT_GUTTER, 10);
   const cw = plotW/data.length;
+  const xi = idx => (idx-startIdx+0.5)*cw;
+  // Indikator (6j): dihitung thd SELURUH m1 (causal, bkn cuma jendela tampak) spy nilai di tepi kiri jendela
+  // benar (bukan "pemanasan" ulang dari 0); TANPA cache lintas-frame krn m1 bertumbuh/berubah tiap tick --
+  // beda dari btIndResult (backtest) yg sah di-cache krn sim.candles-nya tak pernah berubah.
+  const env = { g:ctx, plotW, plotH:baseH, startIdx, endIdx, idx:endIdx-1, dp, candles:m1, count:data.length, xc:xi, tags:[] };
+  if(app){
+    act.forEach(a=>{
+      try{ a.res = liveIndCalc(app, a.inst, a.def, m1, env); app.indRes.set(a.inst.uid, a.res); }
+      catch(e){ a.res = null; liveIndFail(app, a, e); }
+    });
+  }
+  const indBand = [];
+  act.forEach(a=>{
+    if(a.def.pane!=='price' || !a.def.bounds || !a.res) return;
+    try{ const b = a.def.bounds(a.res, a.inst.params, env); if(b){ indBand.push(b.hi, b.lo); } }catch(e){ if(app) liveIndFail(app, a, e); }
+  });
+  const indBandF = indBand.filter(v => v!=null && isFinite(v) && v>lo0-rng0 && v<hi0+rng0);
+  const hi = Math.max(hi0, ...vwapBand, ...zoneBand, ...indBandF), lo = Math.min(lo0, ...vwapBand, ...zoneBand, ...indBandF);
+  const pad = (hi-lo)*0.08 || hi*0.001 || 1;
+  const top=hi+pad, bot=lo-pad;
+  const y = (px)=> baseH - ( (px-bot)/(top-bot) )*baseH;
+  env.y = y; env.y0 = 0; env.y1 = baseH; env.lo = bot; env.hi = top;
 
   // grid harga
   ctx.strokeStyle = '#171C24'; ctx.lineWidth=1; ctx.font='10px monospace'; ctx.fillStyle='#4E5867';
-  for(let i=0;i<=4;i++){ const py = H*i/4; ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(W,py); ctx.stroke();
+  for(let i=0;i<=4;i++){ const py = baseH*i/4; ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(W,py); ctx.stroke();
     ctx.fillText(fmt(top-(top-bot)*i/4, dp), 4, py-2); }
 
   // level penting: liquidity eksternal, sl, tp, fvg, mss
@@ -5773,6 +6059,18 @@ function drawChart(canvas, m1, eng, dp, view){
       ctx.textAlign='left';
     }
   });
+
+  // indikator overlay (price, layer 'under') -- di bawah pita VWAP & candle
+  const indOverlays = layer => {
+    if(!app) return;
+    ctx.save(); ctx.beginPath(); ctx.rect(0,0,plotW,baseH); ctx.clip();
+    act.forEach(a=>{
+      if(a.def.pane!=='price' || (a.def.layer||'over')!==layer || !a.res) return;
+      try{ a.def.draw(ctx, a.res, a.inst.params, env); }catch(e){ liveIndFail(app, a, e); }
+    });
+    ctx.restore();
+  };
+  indOverlays('under');
 
   // VWAP sesi + pita ±1/±2 deviasi standar, sama seperti app Order Flow Roadmap.
   function drawCurve(getter, color, width, dash){
@@ -5810,6 +6108,29 @@ function drawChart(canvas, m1, eng, dp, view){
     const yo=y(c.o), yc=y(c.c);
     ctx.fillRect(cx-bw/2, Math.min(yo,yc), bw, Math.max(Math.abs(yc-yo),1));
   });
+
+  // indikator overlay (price, layer 'over') + label; lalu panel 'sub' (RSI/ATR/Volume..) di bawah panel harga
+  indOverlays('over');
+  if(app){
+    ctx.save(); ctx.beginPath(); ctx.rect(0,0,plotW,baseH); ctx.clip();
+    try{ indFlushTags(env); }catch(e){ console.error('[label indikator live]', e); }
+    ctx.restore();
+    subs.forEach((a,k)=>{
+      const y0 = baseH + LIVE_SUB_GAP + k*(LIVE_SUB_H+LIVE_SUB_GAP), hgt = LIVE_SUB_H;
+      ctx.fillStyle = '#070A0E'; ctx.fillRect(0, y0, plotW, hgt);
+      ctx.strokeStyle = '#171C24'; ctx.lineWidth = 1; ctx.strokeRect(0.5, y0+0.5, plotW-1, hgt-1);
+      let sc = { lo:0, hi:1, dp:dp };
+      if(a.res){ try{ sc = a.def.scale(a.res, a.inst.params, env) || sc; }catch(e){ liveIndFail(app, a, e); } }
+      const span = (sc.hi-sc.lo) || 1;
+      const senv = Object.assign({}, env, { y: v => y0 + hgt - (v-sc.lo)/span*hgt, y0, y1:y0+hgt, lo:sc.lo, hi:sc.hi, tags:null });
+      ctx.save(); ctx.beginPath(); ctx.rect(0, y0, plotW, hgt); ctx.clip();
+      if(a.res){ try{ a.def.draw(ctx, a.res, a.inst.params, senv); }catch(e){ liveIndFail(app, a, e); } }
+      ctx.restore();
+      ctx.font = '10px monospace'; ctx.fillStyle = '#8893A3'; ctx.fillText(a.def.title(a.inst.params), 6, y0+11);
+      ctx.fillStyle = '#4E5867'; ctx.fillText(fmt(sc.hi, sc.dp), plotW+4, y0+9); ctx.fillText(fmt(sc.lo, sc.dp), plotW+4, y0+hgt-2);
+    });
+    liveIndLegendValues(app, endIdx-1, data[data.length-1].c);
+  }
 }
 
 // Panel timeline di sidebar dirender ulang tiap 1 detik (setInterval renderAll). Menimpa innerHTML
@@ -5830,6 +6151,7 @@ function updateScrollableHtml(el, html, key){
 
 function renderDetail(){
   const app = APP[ACTIVE_SYM]; const eng = app.engine; const asset = app.asset;
+  if(LIVE_IND.lastSym !== asset.sym){ LIVE_IND.lastSym = asset.sym; liveIndRenderPanel(app); }
   const rd = readiness(eng);
   const conn = connBadge(app.connState);
 
@@ -5873,12 +6195,14 @@ function renderDetail(){
         + '<span class="chart-meta">'
           + '<b class="price-val'+flashCls+'">'+fmt(eng.price,asset.dp)+'</b>'
           + '<span class="bias-chip" style="color:'+(eng.bias==='BULLISH'?'var(--green)':eng.bias==='BEARISH'?'var(--red)':'var(--mut)')+'">'+eng.bias+'</span>'
-          + '<span class="tf-toggle" title="Timeframe chart"><button class="tf-btn'+(app.chartTf==='M1'?' active':'')+'" data-tf="M1">M1</button><button class="tf-btn'+(app.chartTf==='M5'?' active':'')+'" data-tf="M5">M5</button></span>'
-          + (()=>{ const tf = app.chartTf==='M5' ? 'M5' : 'M1'; const s=secondsToNextCandle(tf==='M5'?CFG.m5Sec:CFG.m1Sec); return '<span class="candle-countdown'+(s<=10?' soon':'')+'" title="Waktu sampai candle '+tf+' baru terbentuk">⏱ '+tf+' '+fmtCountdown(s)+'</span>'; })()
+          + '<span class="tf-toggle" title="Timeframe chart">' + ['M1','M5','M15','M30','H1'].map(tf=>'<button class="tf-btn'+(app.chartTf===tf?' active':'')+'" data-tf="'+tf+'">'+tf+'</button>').join('') + '</span>'
+          + '<button class="btn bt-mini bt-indbtn'+(LIVE_IND.panel?' on':'')+'" id="liveIndBtn" title="Tambah / atur indikator di chart">📈 Indikator <span id="liveIndCount">'+(app.inds.length?'('+app.inds.length+')':'')+'</span></button>'
+          + (()=>{ const tf = app.chartTf; const sec = ({ M1:CFG.m1Sec, M5:CFG.m5Sec, M15:900, M30:1800, H1:3600 })[tf] || CFG.m1Sec; const s=secondsToNextCandle(sec); return '<span class="candle-countdown'+(s<=10?' soon':'')+'" title="Waktu sampai candle '+tf+' baru terbentuk">⏱ '+tf+' '+fmtCountdown(s)+'</span>'; })()
           + conn + ' &nbsp; ' + (app.connMsg||'')
           + (app.chartView.follow ? '' : '<button class="btn-live" id="btnBackLive">▶ Kembali ke Live</button>')
         + '</span>'
       + '</h3>'
+      + '<div class="bt-indlegend" id="liveIndLegend">' + liveIndLegendHtml(app) + '</div>'
       + '<canvas id="chart"></canvas>'
       + '<div class="chart-hint">Scroll = zoom &nbsp;·&nbsp; Geser (klik+tahan+tarik) = lihat histori &nbsp;·&nbsp; Klik dua kali = kembali ke live</div>'
       + '<div class="chart-legend">'
@@ -5956,7 +6280,7 @@ function renderDetail(){
   const canvas = document.getElementById('chart');
   if(canvas){
     wireChartInteraction(canvas, app);
-    drawChart(canvas, chartSeries(app), eng, asset.dp, app.chartView);
+    drawChart(canvas, chartSeries(app), eng, asset.dp, app.chartView, app);
   }
   document.querySelectorAll('.tf-btn').forEach(b=>b.addEventListener('click', ()=>{
     const tf = b.getAttribute('data-tf');
@@ -5986,6 +6310,7 @@ loadSettings();
 loadJournal(); loadCalibHistory(); loadTrials();
 ASSETS.forEach(initAsset);
 attachChartDragOnce();
+liveIndInit();
 document.getElementById('btnReconnectAll').addEventListener('click', startConnections);
 document.getElementById('btnCalibration').addEventListener('click', openSettingsModal);
 document.getElementById('btnCloseSettings').addEventListener('click', closeSettingsModal);

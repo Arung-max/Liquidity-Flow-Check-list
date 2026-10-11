@@ -1,4 +1,4 @@
-# Liquidity Flow Checklist — Blueprint V1.9
+# Liquidity Flow Checklist — Blueprint V2.0
 
 > V1.0 adalah konsep & mockup ASCII. V1.1 ini mengisi setiap celah yang membuat
 > V1.0 tidak bisa langsung dikodekan: ambang angka, urutan gate yang tidak
@@ -1062,3 +1062,73 @@ Batasan jujur: multiplier EA VWAP Stdev Bands (§15) dan parameter EA EMA Color 
 tick/poin candle dasar yang dipilih (mis. "SL 20 tick" berarti 20× tick harga, bukan 20 menit — jarak harganya sama
 di semua timeframe, tapi makna waktunya beda jauh antara M1 dan H1); pertimbangkan itu saat membandingkan hasil
 backtest EA yang sama di timeframe berbeda.
+
+## 17. Modal backtest lebih lega, timeframe M15/M30/H1 & panel Indikator di chart LIVE (V2.0, baru)
+
+### 17.1 Modal Backtest lebih lega
+
+`.modal-panel.bt-panel` naik dari `min(1500px,98vw) / 94vh` ke `min(1800px,99vw) / 97vh`; panel kanan (Akun/Panel
+Order/Modal) dari 340px ke 380px. Tinggi chart harga backtest (`BT_CHART_H`) naik dari 380 ke 520, chart ekuitas
+(`#btEq`) dari 320 ke 400. `BT_CHART_H` adalah tinggi NYATA yang dipakai `btDrawChart` (menata ulang
+`canvas.style.height` tiap frame, lihat §12) — nilai CSS statis `#btChart{height:...}` cuma tampilan awal sebelum
+JS jalan, diubah sekadar demi konsistensi saat lihat kode sumber.
+
+### 17.2 Chart LIVE: timeframe M15, M30, H1 (selain M1/M5)
+
+Tombol timeframe di header chart per-pair (`.tf-toggle`) bertambah dari 2 jadi 5, ditulis generik lewat
+`['M1','M5','M15','M30','H1'].map(...)` (sebelumnya 2 tombol literal) — listener klik (`data-tf`) sudah generik
+dari awal, tidak perlu diubah. `app.chartViews` dapat 3 entri jendela baru (count bawaan 200/150/120, makin kecil
+makin tinggi timeframe-nya, krn makin sedikit candle yang biasanya tersedia).
+
+M1 & M5 tetap dari aggregator live masing-masing (`app.m1Agg`/`app.m5Agg`, tak berubah). **M15/M30/H1 BELUM
+punya aggregator live sendiri** — `chartSeries(app)` menurunkannya on-demand lewat `btResample(app.m5Agg.series(),
+ms)` (fungsi yang sama dipakai backtest, §11), lalu `vwapTagCandles()` dipanggil ulang di atas hasil resample itu
+supaya kurva VWAP ± SD tetap tampil di timeframe baru (aman — `vwapTagCandles` menandai objek candle BARU hasil
+resample, bukan memutasi candle M5 aslinya). Karena `m5Agg.series()` ikut membawa candle yang sedang terbentuk,
+candle M15/M30/H1 hasil resample juga "hidup" (bar terakhirnya tumbuh tiap kali M5 di dalamnya bertambah) — tanpa
+perlu aggregator/tick-ingestion terpisah. `secondsToNextCandle` (hitung mundur candle) dan `wireChartInteraction`/
+`requestChartRedraw` (zoom/geser) sudah generik lewat `chartSeries(app)`, otomatis ikut jalan tanpa disentuh.
+
+Batasan jujur: histori M15/M30/H1 dibatasi oleh `BACKFILL_CANDLES` buffer M5 (≈11,5 hari, lihat §6/§16) — H1
+hasil resample paling banyak ≈275 candle, jauh lebih sedikit dari M1/M5. Memperpanjang ini perlu memperbesar
+`BACKFILL_CANDLES` (dan `bridge.mjs` di proyek terpisah) — sengaja tidak dikerjakan di sesi ini (lihat §16).
+
+### 17.3 Chart LIVE: panel "📈 Indikator" (reuse penuh dari backtest)
+
+Chart live per-pair sekarang punya panel indikator yang SAMA PERSIS jenisnya dengan backtest (§12) — satu daftar
+`BT_INDICATORS` dipakai bersama tanpa diubah sama sekali, begitu juga seluruh primitif gambar generik
+(`indPath`/`indBand`/`indHLine`/`indTag`/`indFlushTags`/`indMinMax`/dst.) dan `btIndParamHtml` (form parameter
+otomatis dari `params` tiap indikator). **Tidak ada satu baris pun kode backtest (awalan `BT.`/`bt`) yang diubah
+untuk fitur ini** — orkestrasinya (state/panel/aksi) ditulis baru & terpisah dengan awalan `liveInd*`/`LIVE_IND`,
+karena chart live punya tiga beda arsitektur penting dari backtest:
+
+1. **Daftar aktif per-PAIR**, bukan satu daftar global seperti `BT.inds` — disimpan di `app.inds`/`app.indOpen`/
+   `app.indRes`/`app.indErr*` (per objek `app`, diisi di `initAsset`), persisten per simbol di localStorage
+   (`lfc.live.inds.<SYM>`). Bawaan **kosong** (bukan `indDefaultList()` seperti backtest) — Liquidity Detector,
+   Level Mesin, dan VWAP ± SD **sudah tampil otomatis** di chart ini di luar sistem indikator (kode asli
+   `drawChart`, tak berubah); menambahkannya lewat panel akan menampilkan salinan kedua, bukan duplikat
+   tersembunyi — dicatat di teks bantuan panel.
+2. **Tanpa cache lintas-frame.** `btIndResult` (backtest) sah men-cache hasil per `sim`+params krn `sim.candles`
+   tidak pernah berubah sepanjang satu run. `chartSeries(app)` live BERTUMBUH & candle terakhirnya BERUBAH tiap
+   tick, jadi `liveIndCalc` menghitung ulang `def.calc()` setiap `drawChart` dipanggil — harga murah krn array
+   dibatasi `BACKFILL_CANDLES`/`AGG_CAP`.
+3. **Panel (pencarian + form parameter) statis di luar `#detailBody`.** `renderDetail()` menimpa `innerHTML`
+   penuh tiap dipanggil (sering — tiap tick), yang akan memutus fokus & kursor ketik kalau form input ikut di
+   dalamnya (alasan yang sama membuat kerangka modal backtest statis, §11). Markup `#liveIndPanel` karena itu
+   ditaruh sekali di HTML statis (dekat `#btOverlay`), posisinya `position:fixed` (bukan flex-child seperti
+   `.bt-indpanel` di modal backtest) dan HANYA digambar ulang saat benar-benar berubah: pertama kali
+   (`liveIndInit`), saat indikator ditambah/hapus/diatur (`liveIndChanged`), atau saat pair aktif berganti
+   (pengaman `LIVE_IND.lastSym` di awal `renderDetail`). Tombol toggle & chip legend AMAN ikut dibangun ulang
+   tiap render (cuma tombol, tanpa input) — listener-nya dipasang SEKALI lewat delegasi klik ke `#detailBody`
+   (elemen stabil, tak pernah diganti), bukan dipasang ulang tiap render seperti `.tf-btn`.
+
+`drawChart(canvas, m1, eng, dp, view, app)` dapat parameter `app` baru (kedua pemanggilnya, `renderDetail` dan
+`requestChartRedraw`, diperbarui) dan tinggi kanvas kini dinamis — formula `clamp(360px,54vh,620px)` / `300px`
+layar sempit (sebelumnya murni CSS) direplikasi di JS sebagai `baseWant`, lalu ditambah tinggi tiap indikator
+panel-bawah (RSI/ATR/Volume) yang aktif, identik pola `BT_CHART_H + subs.length*(...)` di backtest (§12). Semua
+baris yang SUDAH ADA (candle/zona/VWAP/level mesin) tidak diubah logikanya — cuma variabel skala `H` diganti
+`baseH` (tinggi panel harga saja, tanpa panel bawah) di bagian grid & `y(px)`.
+
+Batasan jujur: field pencarian/parameter di panel live memakai elemen DOM yang SAMA (`#liveIndSearch` dst.)
+dengan gaya `.ind-*` milik backtest — mengubah CSS `.ind-*` memengaruhi tampilan keduanya sekaligus (disengaja,
+demi konsistensi visual, bukan kebetulan).

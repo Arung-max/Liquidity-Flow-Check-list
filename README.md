@@ -28,7 +28,10 @@ Kalau bridge belum aktif, pair-pair itu otomatis jatuh ke status SIM/ERROR tanpa
 mengganggu pair kripto yang lain.
 
 Garis **VWAP** di chart live (M1 dan M5) langsung terisi dari histori begitu histori masuk — dihitung sejak 00:00 UTC, bukan
-mulai dari nol saat halaman dibuka (blueprint §13.2).
+mulai dari nol saat halaman dibuka (blueprint §13.2). Chart live juga punya timeframe **M15, M30, H1** (selain M1/M5 — diturunkan
+dari buffer M5, jangkauannya mengikuti histori yang sudah di-backfill) dan panel **📈 Indikator** yang sama persis dengan
+backtest (EMA, SMA, Bollinger Bands, RSI, ATR, Volume, PDH/PDL, VWAP±SD, Liquidity Detector, Level Mesin — tersimpan terpisah
+per pair). Detail: blueprint §17.
 
 Begitu tersambung, kripto & pair lewat bridge sama-sama langsung menarik histori
 candle (bukan mulai dari nol) — kripto lewat REST Binance, pair lainnya lewat
