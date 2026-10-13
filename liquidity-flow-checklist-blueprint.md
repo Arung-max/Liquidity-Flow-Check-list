@@ -1,4 +1,4 @@
-# Liquidity Flow Checklist — Blueprint V2.0
+# Liquidity Flow Checklist — Blueprint V2.1
 
 > V1.0 adalah konsep & mockup ASCII. V1.1 ini mengisi setiap celah yang membuat
 > V1.0 tidak bisa langsung dikodekan: ambang angka, urutan gate yang tidak
@@ -630,11 +630,13 @@ pakai pada simulasi yang sama: (a) **Backtest Otomatis** — mesin Liquidity Flo
 rentang dan setiap sinyal CONFIRMED dieksekusi otomatis; (b) **Replay manual** — candle dimajukan satu
 per satu (Play/+1/+10/+100/Sampai Akhir, 1–100 candle/detik) sambil Anda BUY/SELL sendiri.
 
-**Data.** Buffer per timeframe dinaikkan ke **3500 candle** (`AGG_CAP`) = 3000 untuk backtest + ~300
-pemanasan. Binance: backfill berhalaman mundur (`fetchBinanceKlinesPaged`, 1000 candle/request,
-`endTime` = openTime tertua − 1, halaman lama yang gagal tidak membuang yang sudah didapat) untuk M1
-**dan M5** (`BACKFILL_CANDLES = 3300`). `bridge.mjs` (pair non-kripto) meminta 3300 trendbar M1 & M5 —
-batas maksimum yang diizinkan broker belum diverifikasi; apa pun yang diterima dipakai. Sumber data
+**Data.** Buffer per timeframe (`AGG_CAP`) = **10.600 candle** = 10.000 untuk backtest (`BT_MAX_CANDLES`, §16) +
+~300 pemanasan + ~300 slack candle live (dinaikkan dari 3500 di V1.4 — lihat §18). Binance: backfill berhalaman
+mundur (`fetchBinanceKlinesPaged`, 1000 candle/request, `endTime` = openTime tertua − 1, halaman lama yang gagal
+tidak membuang yang sudah didapat) untuk M1 **dan M5** (`BACKFILL_CANDLES = 10300`, naik dari 3300). `bridge.mjs`
+(pair non-kripto) meminta 10300 trendbar M1 & M5 lewat **satu** `GET_TRENDBARS_REQ` (TIDAK berhalaman) — batas
+maksimum yang diizinkan broker masih belum diverifikasi (lihat §18 — bergantung pengujian pengguna sendiri); apa
+pun yang diterima dipakai. Sumber data
 backtest: **Data pasar** (buffer aplikasi) atau **Data demo sintetis** (random-walk berseed + pola setup
 Liquidity Flow yang disisipkan agar mesin punya sinyal; BUKAN pasar — ditandai jelas di UI dan laporan).
 Mesin (`stepEngine`) tetap hanya melihat jendela terakhir (`ENGINE_WIN_BASE` = 1500 candle, konteks 800)
@@ -1043,20 +1045,14 @@ dan opsi baru di panel setup.
 **Data demo sintetis**: langsung mendukung 10.000 candle di keempat timeframe, tanpa batasan tambahan apa pun
 (sudah diverifikasi: H1 10.000 candle ≈ 14 bulan data, selesai dalam hitungan detik).
 
-**Data pasar (live)**: **tidak ada feed/backfill baru**. M1 & M5 tetap memakai buffer live yang sudah ada
-(`app.m1Agg`/`app.m5Agg`); M15 & H1 **diturunkan on-the-fly via resample** dari buffer M5 tersimpan (`btResample`,
-bukan dari M1 — M5 mencakup rentang waktu lebih panjang pada jumlah-candle yang sama). Karena buffer M5 sendiri
-dibatasi `BACKFILL_CANDLES` (3300 candle M5 ≈ 11,5 hari, lihat §6), H1 hasil resample dari buffer itu paling banyak
-≈275 candle H1 — jauh di bawah 10.000. Ini **bukan bug**, melainkan konsekuensi langsung dari kedalaman backfill
-yang ada; `btBuildData` sudah menangani ini dengan baik lewat jalur yang sudah ada sejak awal (pesan "Data tersedia
-hanya N candle" bila kurang dari yang diminta, atau error jelas + tawaran pindah ke Data Demo bila di bawah
-`BT_MIN_CANDLES`) — **tidak ditambah logika baru**, cukup diverifikasi tetap berfungsi untuk keempat timeframe.
-
-Memperpanjang histori NYATA yang tersedia untuk M15/H1 (atau memperbesar `BACKFILL_CANDLES` untuk M1/M5) adalah
-pekerjaan terpisah yang lebih besar: perlu menaikkan target backfill Binance klines (`backfillBinance`, sudah
-dipaging lewat `fetchBinanceKlinesPaged`, jadi secara teknis bisa, hanya lebih banyak request & lebih lambat) **dan**
-permintaan trendbar di `bridge.mjs` (proyek terpisah di luar file ini, perlu di-restart manual oleh pengguna setelah
-diubah — sama seperti catatan `BACKFILL_CANDLES` di §6) — sengaja tidak dikerjakan di sesi ini.
+**Data pasar (live)**: M1 & M5 tetap memakai buffer live yang sudah ada (`app.m1Agg`/`app.m5Agg`); M15 & H1
+**diturunkan on-the-fly via resample** dari buffer M5 tersimpan (`btResample`, bukan dari M1 — M5 mencakup
+rentang waktu lebih panjang pada jumlah-candle yang sama). Kedalaman buffer M5 itu sendiri (`BACKFILL_CANDLES`,
+`AGG_CAP`) dinaikkan di V2.1 (§18) supaya keempat timeframe bisa mendekati 10.000 candle juga di "Data pasar",
+bukan cuma "Data demo sintetis" — detail & batasannya (terutama jalur `bridge.mjs`/cTrader yang belum bisa
+diverifikasi dari sesi pengembangan ini) ada di §18. `btBuildData` tidak berubah sama sekali oleh perbaikan itu
+(pesan "Data tersedia hanya N candle" bila kurang dari yang diminta, atau error jelas + tawaran pindah ke Data
+Demo bila di bawah `BT_MIN_CANDLES`, sudah menangani kekurangan data sejak awal di keempat timeframe).
 
 Batasan jujur: multiplier EA VWAP Stdev Bands (§15) dan parameter EA EMA Color Reverse (§14) tetap dalam satuan
 tick/poin candle dasar yang dipilih (mis. "SL 20 tick" berarti 20× tick harga, bukan 20 menit — jarak harganya sama
@@ -1089,9 +1085,9 @@ candle M15/M30/H1 hasil resample juga "hidup" (bar terakhirnya tumbuh tiap kali 
 perlu aggregator/tick-ingestion terpisah. `secondsToNextCandle` (hitung mundur candle) dan `wireChartInteraction`/
 `requestChartRedraw` (zoom/geser) sudah generik lewat `chartSeries(app)`, otomatis ikut jalan tanpa disentuh.
 
-Batasan jujur: histori M15/M30/H1 dibatasi oleh `BACKFILL_CANDLES` buffer M5 (≈11,5 hari, lihat §6/§16) — H1
-hasil resample paling banyak ≈275 candle, jauh lebih sedikit dari M1/M5. Memperpanjang ini perlu memperbesar
-`BACKFILL_CANDLES` (dan `bridge.mjs` di proyek terpisah) — sengaja tidak dikerjakan di sesi ini (lihat §16).
+Batasan jujur: histori M15/M30/H1 tetap dibatasi oleh kedalaman `BACKFILL_CANDLES` buffer M5 — dinaikkan di V2.1
+(§18), tapi pencapaian nyata di jalur `bridge.mjs`/cTrader (forex/metal/indeks) belum bisa diverifikasi dari
+sesi pengembangan ini (lihat §18).
 
 ### 17.3 Chart LIVE: panel "📈 Indikator" (reuse penuh dari backtest)
 
@@ -1132,3 +1128,48 @@ baris yang SUDAH ADA (candle/zona/VWAP/level mesin) tidak diubah logikanya — c
 Batasan jujur: field pencarian/parameter di panel live memakai elemen DOM yang SAMA (`#liveIndSearch` dst.)
 dengan gaya `.ind-*` milik backtest — mengubah CSS `.ind-*` memengaruhi tampilan keduanya sekaligus (disengaja,
 demi konsistensi visual, bukan kebetulan).
+
+## 18. Backfill live dinaikkan ke ~10.000 candle (V2.1) — dan batas verifikasinya
+
+Setelah §16/§17 (batas backtest naik ke 10.000 candle + timeframe baru di chart live), laporan pengguna: "Data
+pasar" di backtest untuk M1 cuma menampilkan ±3350 candle meski diminta 10.000, dan M5/M15/H1 jauh lebih sedikit
+lagi (ratusan). Ini **bukan bug baru** — persis sesuai catatan jujur yang sudah ditulis di §16.2/§17.2:
+`BACKFILL_CANDLES`/`AGG_CAP` masih di angka lama V1.4 (3300/3500, disetel saat `BT_MAX_CANDLES` masih 3000),
+belum ikut dinaikkan saat §16 menaikkan batas backtest. M15/M30/H1 yang diturunkan via resample dari buffer M5
+(§16.2/§17.2) otomatis ikut kena batas yang sama, malah lebih parah (dibagi 3×/12× saat resample ke M15/H1).
+
+**Perbaikan**: `BACKFILL_CANDLES` 3300→**10300**, `AGG_CAP` 3500→**10600** (slack naik dari ~200 ke ~300 candle
+live yang bisa masuk di antara backfill tanpa langsung terpotong ring-buffer). `bridge.mjs` (proyek **terpisah**,
+`Order Flow Bridge FIle/bridge.mjs`, bukan bagian repo ini, bukan di bawah git) ikut diubah:
+`requestHistory('M1', 3300)`/`('M5', 3300)` → `10300`/`10300` — perlu **restart manual** proses bridge oleh
+pengguna supaya berlaku (proses yang sedang berjalan tidak memuat ulang kodenya sendiri).
+
+**Dua jalur backfill, dua tingkat keyakinan berbeda:**
+- **Kripto (Binance klines, `fetchBinanceKlinesPaged`)**: sudah berhalaman penuh sejak V1.4 (1000 candle/request,
+  mundur sampai target terpenuhi) — menaikkan `BACKFILL_CANDLES` murni menaikkan jumlah halaman yang diminta
+  (≈11 halaman utk 10300 candle), tidak ada perubahan logika sama sekali. Keyakinan tinggi ini akan benar-benar
+  mencapai ~10.300 candle (startup app jadi lebih lambat — lebih banyak request berurutan — tapi tidak ada batas
+  lain yang diketahui pada endpoint publik Binance).
+- **Forex/metal/indeks (`bridge.mjs`, cTrader `GET_TRENDBARS_REQ`)**: SATU permintaan per timeframe, **TIDAK**
+  berhalaman (beda dari jalur Binance). Menaikkan `count` yang diminta ke 10300 **tidak bisa dijamin tercapai** —
+  kalau server cTrader broker Anda punya batas trendbar per-request di bawah itu, yang kembali akan lebih sedikit
+  (server cuma mengirim sebanyak yang diizinkannya, bukan error, bukan crash). **Ini bukan ketidaktahuan baru** —
+  sudah jadi catatan sejak §11 ditulis pertama kali ("batas maksimum yang diizinkan broker belum diverifikasi");
+  masih belum berubah, karena sandbox pengembangan ini tidak bisa menyambung ke server cTrader (atau Binance)
+  sungguhan untuk mengujinya langsung (diblokir sertifikat/proxy sandbox).
+
+**Cara memastikan di lingkungan Anda sendiri**: restart `bridge.mjs`, lalu lihat baris log konsolnya —
+`Histori M1 diterima -> <SYM>: N candle` (begitu juga M5). Kalau N sudah mendekati 10300, beres. Kalau N masih
+jauh di bawahnya (mis. masih di ribuan tanggung atau malah ratusan), itu tandanya broker membatasi per-request —
+beri tahu Claude angka N yang sebenarnya supaya jalur `bridge.mjs` bisa ditulis ulang jadi berhalaman (pola yang
+sama dengan `fetchBinanceKlinesPaged`: minta ulang dengan `toTimestamp` mundur bertahap sampai target terpenuhi
+atau broker benar-benar kehabisan histori). Belum dikerjakan proaktif di sesi ini karena itu berarti menulis
+ulang alur request/response trendbar (state per-koneksi, bukan cuma angka) tanpa cara mengujinya terhadap server
+cTrader sungguhan dari sandbox ini — risiko salah tulis (mis. duplikat candle di batas halaman, permintaan tak
+pernah berhenti) lebih baik dihindari sampai ada kepastian angka N nyata dari pengguna.
+
+Batasan jujur lain: 10.300 candle M1 live (±7 hari) × sampai 12 pair akan memperbesar waktu startup/backfill app
+secara nyata dibanding 3300 sebelumnya (lebih banyak request Binance berurutan per pair kripto) — belum diukur
+waktu nyatanya di sesi ini (sandbox tak bisa menyambung Binance sungguhan, lihat batasan di atas). Memori buffer
+(sampai 12 pair × 2 timeframe × 10.600 candle × objek kecil `{t,o,h,l,c,v}`) tetap jauh di bawah batas wajar
+browser modern.

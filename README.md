@@ -39,9 +39,10 @@ histori trendbar cTrader yang diteruskan bridge. Fitur bridge ini butuh
 `bridge.mjs` versi yang sudah mendukung `GET_TRENDBARS_REQ`/`RES`; lihat
 blueprint §6.1–6.2 untuk detail protokolnya.
 
-Histori yang dimuat kini sampai **3300 candle** (3000 untuk backtest + ~300 pemanasan)
-untuk M1 dan M5. Setelah `bridge.mjs` diubah (minta 3300 trendbar), **restart bridge**
-agar pair non-kripto ikut mendapat histori sepanjang itu.
+Histori yang dimuat kini sampai **10.300 candle** (10.000 untuk backtest + ~300 pemanasan)
+untuk M1 dan M5. Setelah `bridge.mjs` diubah (minta 10300 trendbar), **restart bridge**
+agar pair non-kripto ikut mendapat histori sepanjang itu — pencapaian nyatanya bergantung batas
+broker cTrader Anda per-request (belum terverifikasi dari sesi pengembangan ini, lihat blueprint §18).
 
 Buka `liquidity-flow-checklist.html` langsung di browser (dobel klik, atau lewat
 `file://`) — tidak perlu server statis.

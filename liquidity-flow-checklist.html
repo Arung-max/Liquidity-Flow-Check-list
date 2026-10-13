@@ -68,7 +68,11 @@
   .layout{display:flex;flex:1;min-height:0;}
   .scanner{width:390px;flex:0 0 390px;border-right:1px solid var(--line);background:var(--bg);
     display:flex;flex-direction:column;min-height:0;
-    animation:appIn .5s .05s var(--ease-pop) both;}
+    animation:appIn .5s .05s var(--ease-pop) both;
+    transition:width .2s ease, max-height .2s ease;}
+  /* Sembunyikan/tampilkan sidebar pair (6n) -- chart (.detail, flex:1) otomatis melebar mengisi ruang
+     yg kosong krn .layout adalah flex row; tak perlu ubah CSS .detail sama sekali. */
+  .scanner.collapsed{width:0;flex:0 0 0;min-width:0;overflow:hidden;border-right:none;}
   .scanner-pairs{flex:0 1 auto;overflow-y:auto;min-height:0;}
   .scanner-hd{padding:10px 14px;color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.06em;
     border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:2;}
@@ -346,6 +350,41 @@
     border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:11.5px;z-index:40;box-shadow:0 10px 30px rgba(0,0,0,.45);}
   #liveIndSearch{width:100%;background:var(--panel3);border:1px solid var(--line);color:var(--text);padding:6px 8px;border-radius:6px;font:12px var(--mono);}
   @media (max-width:900px){ .live-indpanel{left:10px;right:10px;width:auto;top:60px;max-height:70vh;} }
+  /* ---------- Panel Trading Demo (Chart Live, 6l/6p) -- v2: bar TICKET ringkas (tinggi tetap, lihat
+     LTB_COMPACT_H di JS) selalu di dasar layar + panel DETAIL (tab Order/Posisi/Akun) yg bisa dibuka-tutup
+     tepat di atasnya, tinggi dibatasi tegas (LTB_DETAIL_H, lihat JS) -- BUKAN semua field berjejer
+     sekaligus spt v1. Chart ikut MENGECIL otomatis selama panel terbuka (baseWant, 7. RENDER) supaya
+     TIDAK PERNAH menutupi candle, bukan cuma estetika. Reuse .tabbar/.tab-btn (sama dgn tab Backtest/
+     Analisis) & .bt-* (bt-quote/bt-sell/bt-buy/bt-pv/bt-ordermsg/bt-chips) apa adanya. ---------- */
+  .live-tradebar{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line);
+    z-index:45;box-shadow:0 -10px 30px rgba(0,0,0,.45);font-size:11.5px;}
+  .ltb-detail{max-height:300px;overflow-y:auto;border-bottom:1px solid var(--line-soft);}
+  .ltb-tabbody{padding:12px 18px 14px;}
+  .ltb-subhd{font-size:10px;color:var(--mut2);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px;}
+  .ltb-subhd:first-child{margin-top:0;}
+  .ltb-order-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px 14px;}
+  .ltb-order-grid label{display:flex;flex-direction:column;gap:4px;font-size:10.5px;color:var(--mut);}
+  .ltb-order-grid select,.ltb-order-grid input{background:var(--panel3);border:1px solid var(--line);color:var(--text);
+    padding:6px 8px;border-radius:6px;font:11.5px var(--mono);width:100%;}
+  .ltb-preview{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;}
+  .ltb-preview .bt-pv{margin-top:0;flex:1 1 220px;}
+  .ltb-acc-row{display:flex;gap:18px;flex-wrap:wrap;}
+  .ltb-stat{display:flex;flex-direction:column;gap:2px;min-width:84px;}
+  .ltb-stat span{font-size:9px;color:var(--mut);text-transform:uppercase;letter-spacing:.03em;}
+  .ltb-stat b{font-size:13px;font-family:var(--mono);}
+  .ltb-modal-inline{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .ltb-modal-inline input{width:104px;background:var(--panel3);border:1px solid var(--line);color:var(--text);
+    padding:6px 8px;border-radius:6px;font:11.5px var(--mono);}
+  .ltb-compact{display:flex;align-items:center;gap:18px;padding:0 18px;height:54px;}
+  .ltb-compact-pair{display:flex;align-items:center;gap:14px;font-size:13px;flex:0 0 auto;}
+  .ltb-compact-acc{display:flex;align-items:center;gap:16px;flex:1;min-width:0;}
+  .ltb-compact-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto;}
+  .ltb-compact-actions .bt-sell,.ltb-compact-actions .bt-buy{padding:10px 22px;min-width:84px;font-size:12.5px;}
+  @media (max-width:900px){
+    .ltb-detail{max-height:60vh;}
+    .ltb-compact{padding:0 10px;gap:10px;flex-wrap:wrap;height:auto;min-height:54px;padding-top:6px;padding-bottom:6px;}
+    .ltb-order-grid{grid-template-columns:repeat(2,1fr);}
+  }
   .ind-help{margin-top:12px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);padding:6px 10px;color:var(--mut);}
   .ind-help summary{cursor:pointer;color:var(--text);font-weight:600;font-size:11.5px;}
   .ind-help ol{margin:8px 0 4px;padding-left:18px;line-height:1.55;} .ind-help p{margin:6px 0;line-height:1.5;}
@@ -359,6 +398,7 @@
   @media (max-width:760px){
     .layout{flex-direction:column;}
     .scanner{width:100%;flex:0 0 auto;max-height:420px;border-right:none;border-bottom:1px solid var(--line);}
+    .scanner.collapsed{max-height:0;min-height:0;border-bottom:none;}
     .scanner-pairs{max-height:220px;}
     .scanner-timeline-panel{max-height:180px;min-height:120px;}
     canvas#chart{height:300px;}
@@ -386,12 +426,13 @@
     <button class="btn" id="btnCalibration">⚙ Kalibrasi</button>
     <button class="btn" id="btnAnalysis">📊 Analisis Pasar</button>
     <button class="btn" id="btnBacktest">🧪 Backtest</button>
+    <button class="btn bt-mini" id="btnToggleScanner" title="Sembunyikan/tampilkan daftar pair -- chart jadi lebih lebar">◀ Sembunyikan Pair</button>
     <div class="spacer"></div>
     <div class="field" id="globalStatus" style="color:var(--mut)">Belum tersambung</div>
   </div>
 
   <div class="layout">
-    <div class="scanner">
+    <div class="scanner" id="scannerPanel">
       <div class="scanner-pairs">
         <div class="scanner-hd">Roadmap Pair (klik untuk detail)</div>
         <div id="scannerBody"></div>
@@ -665,6 +706,81 @@
     <p>Liquidity Detector, Level Mesin, dan VWAP ± SD <b>sudah tampil otomatis</b> di chart ini di luar panel indikator — menambahkannya di sini akan menampilkan salinan kedua, bukan duplikat tersembunyi.</p>
     <p>Daftar jenis indikator persis sama dengan yang ada di Backtest (📈 Indikator di modal Backtest) — satu daftar <code>BT_INDICATORS</code> dipakai bersama. Panduan &amp; contoh menambah jenis baru ada di blueprint §12.</p>
   </details>
+</aside>
+
+<div class="modal-overlay" id="pairSearchOverlay" style="display:none">
+  <div class="modal-panel" style="width:min(440px,92vw);max-height:76vh;">
+    <div class="modal-hd"><b>🔍 Cari &amp; Pilih Pair</b><button class="btn bt-mini" id="pairSearchClose">✕</button></div>
+    <div class="modal-body">
+      <input type="search" id="pairSearchInput" placeholder="Cari simbol atau nama… (mis. XAU, Emas, BTC)" autocomplete="off"
+        style="width:100%;background:var(--panel3);border:1px solid var(--line);color:var(--text);padding:8px 10px;border-radius:6px;font:12.5px var(--mono);margin-bottom:10px;">
+      <div id="pairSearchList"></div>
+    </div>
+  </div>
+</div>
+
+<aside class="live-tradebar" id="liveTradePanel" style="display:none">
+  <div class="ltb-detail" id="ltpDetail">
+    <div class="tabbar">
+      <button class="tab-btn active" data-ltbtab="order">📝 Order</button>
+      <button class="tab-btn" data-ltbtab="pos">📊 Posisi &amp; Order</button>
+      <button class="tab-btn" data-ltbtab="akun">💼 Akun</button>
+    </div>
+    <div class="ltb-tabbody">
+      <div class="ltb-pane" data-ltpane="order">
+        <div class="ltb-order-grid">
+          <label>Tipe Order
+            <select id="ltpOtype"><option value="market">Market</option><option value="limit">Limit</option><option value="stop">Stop</option></select></label>
+          <label id="ltpPriceWrap" style="display:none">Harga Order<input type="number" id="ltpOprice" step="any" placeholder="harga"></label>
+          <label>Ukuran<select id="ltpSizeMode"><option value="risk">Risiko %</option><option value="lot">Lot</option></select></label>
+          <label>Nilai Ukuran<input type="number" id="ltpSizeVal" value="1" step="any" min="0"></label>
+          <label>Stop Loss<select id="ltpSlMode"><option value="atr">× ATR</option><option value="price">Harga</option><option value="none">Tanpa SL</option></select></label>
+          <label>Nilai SL<input type="number" id="ltpSlVal" value="1.5" step="any" min="0"></label>
+          <label>Take Profit<select id="ltpTpMode"><option value="r">× R</option><option value="price">Harga</option><option value="none">Tanpa TP</option></select></label>
+          <label>Nilai TP<input type="number" id="ltpTpVal" value="2" step="any" min="0"></label>
+        </div>
+        <div class="ltb-preview" id="ltpPreview"></div>
+        <div class="bt-ordermsg" id="ltpOrderMsg"></div>
+      </div>
+      <div class="ltb-pane" data-ltpane="pos" style="display:none">
+        <div class="ltb-subhd">Posisi Terbuka (Semua Pair)</div>
+        <div id="ltpPositions"></div>
+        <div class="ltb-subhd">Order Pending (Semua Pair)</div>
+        <div id="ltpOrders"></div>
+      </div>
+      <div class="ltb-pane" data-ltpane="akun" style="display:none">
+        <div class="ltb-acc-row" id="ltpAcc"></div>
+        <div class="ltb-subhd">Modal</div>
+        <div class="ltb-modal-inline">
+          <input type="number" id="ltpMoneyAmt" value="1000" min="0" step="100">
+          <button class="btn bt-mini ltp-chip-amt" data-amt="500">500</button>
+          <button class="btn bt-mini ltp-chip-amt" data-amt="1000">1.000</button>
+          <button class="btn bt-mini ltp-chip-amt" data-amt="5000">5.000</button>
+          <button class="btn bt-mini ltp-chip-amt" data-amt="10000">10.000</button>
+          <button class="btn primary bt-mini" id="ltpDep">➕ Tambah Modal</button>
+          <button class="btn bt-mini" id="ltpWd">➖ Tarik</button>
+        </div>
+        <div class="ltb-subhd">Aksi Cepat</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn bt-mini" id="ltpCloseAllBtn">Tutup Semua Posisi</button>
+          <button class="btn bt-mini" id="ltpCancelOrders">Batalkan Semua Order</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="ltb-compact">
+    <div class="ltb-compact-pair">
+      <b id="ltpPairLabel">—</b>
+      <span class="bt-quote"><span>BID <b id="ltpBid">—</b></span><span>ASK <b id="ltpAsk">—</b></span></span>
+    </div>
+    <div class="ltb-compact-acc" id="ltpAccMini"></div>
+    <div class="ltb-compact-actions">
+      <button class="bt-sell" id="ltpSell">SELL</button>
+      <button class="bt-buy" id="ltpBuy">BUY</button>
+      <button class="btn bt-mini" id="ltpExpandBtn" title="Sembunyikan/tampilkan detail order">▾</button>
+      <button class="btn bt-mini" id="ltpCloseBtn" title="Tutup panel">✕</button>
+    </div>
+  </div>
 </aside>
 
 <script>
@@ -1025,7 +1141,7 @@ async function fetchBinanceKlines(sym, interval, limit, endTime, dropLast){
 // halaman LAMA gagal di tengah jalan, yang sudah didapat tetap dipakai (histori lebih pendek lebih
 // baik daripada tidak ada sama sekali); kalau halaman PERTAMA gagal, error dilempar ke pemanggil
 // (supaya jalur retry di backfillBinance tetap jalan).
-const BACKFILL_CANDLES = 3300; // 3000 candle utk backtest + ~300 utk pemanasan indikator/mesin
+const BACKFILL_CANDLES = 10300; // 10000 candle utk backtest (BT_MAX_CANDLES, §16) + ~300 utk pemanasan indikator/mesin
 async function fetchBinanceKlinesPaged(sym, interval, total){
   let out = [];
   let endTime = null;
@@ -2075,11 +2191,16 @@ function initAsset(asset){
     // chartTf = timeframe chart (M1/M5); tiap TF punya jendela sendiri (chartViews), dan
     // app.chartView selalu menunjuk jendela TF yg aktif supaya kode drag/zoom tidak perlu tahu TF.
     chartTf:'M1' };
-  app.chartViews = { M1:{ follow:true, endIdx:0, count:500 }, M5:{ follow:true, endIdx:0, count:300 },
-    M15:{ follow:true, endIdx:0, count:200 }, M30:{ follow:true, endIdx:0, count:150 }, H1:{ follow:true, endIdx:0, count:120 } };
+  // yShiftPrice: pergeseran manual sumbu harga (vertikal, satuan harga) -- 0 = otomatis pas-pasan ke
+  // rentang candle yg tampak (perilaku lama). Diisi lewat drag (lihat attachChartDragOnce), direset ke 0
+  // lewat dobel-klik / tombol "Kembali ke Live" (sama kapan follow horizontal direset).
+  app.chartViews = { M1:{ follow:true, endIdx:0, count:500, yShiftPrice:0 }, M5:{ follow:true, endIdx:0, count:300, yShiftPrice:0 },
+    M15:{ follow:true, endIdx:0, count:200, yShiftPrice:0 }, M30:{ follow:true, endIdx:0, count:150, yShiftPrice:0 }, H1:{ follow:true, endIdx:0, count:120, yShiftPrice:0 } };
   app.chartView = app.chartViews.M1;
   app.m1Agg = makeAggregator(CFG.m1Sec, AGG_CAP, ()=>{ recompute(app); });
   app.m5Agg = makeAggregator(CFG.m5Sec, AGG_CAP, null);
+  // Tick live terakhir pair ini {price,ts} -- diisi ingestTrade, dibaca mesin demo trading (6k) lewat demoMid().
+  app.lastTick = null;
   // Indikator chart live (6j): daftar aktif PER PAIR (beda dari BT.inds yg satu daftar global di backtest),
   // dimuat dari localStorage per simbol; bawaan KOSONG (lihat komentar liveIndLoad kenapa bukan indDefaultList()).
   app.inds = liveIndLoad(asset.sym);
@@ -2091,13 +2212,14 @@ function initAsset(asset){
   return app;
 }
 
-// Buffer histori per timeframe: 3500 = 3000 candle utk backtest + ~300 pemanasan + sedikit ruang utk
-// candle live yg terus masuk. Mesin (stepEngine) SENGAJA tetap hanya melihat jendela terakhir
-// ENGINE_WIN_* candle -- sama persis dgn yg dulu dilihatnya ketika buffer dibatasi 1500/800 --
-// karena ATR (SMA 14), swing (lookback 50 M5), range (<=24), hipotesis (<=90 menit), trade (<=240
-// menit) semuanya lokal; menyuapkan 3500 candle tiap langkah cuma memperlambat (O(n) per langkah)
+// Buffer histori per timeframe: 10600 = BACKFILL_CANDLES (10300) + ~300 ruang ekstra utk candle live yg terus
+// masuk di antara backfill (kalau sama persis BACKFILL_CANDLES, backfill yg baru masuk langsung kepotong lagi
+// oleh ring-buffer begitu beberapa candle live baru masuk). Mesin (stepEngine) SENGAJA tetap hanya melihat
+// jendela terakhir ENGINE_WIN_* candle -- sama persis dgn yg dulu dilihatnya ketika buffer dibatasi 1500/800,
+// lalu 3500 -- karena ATR (SMA 14), swing (lookback 50 M5), range (<=24), hipotesis (<=90 menit), trade (<=240
+// menit) semuanya lokal; menyuapkan lebih banyak candle tiap langkah cuma memperlambat (O(n) per langkah)
 // tanpa mengubah hasil.
-const AGG_CAP = 3500;
+const AGG_CAP = 10600;
 const ENGINE_WIN_BASE = 1500;
 const ENGINE_WIN_CTX = 800;
 const LIVE_REPLAY_CANDLES = 1500;
@@ -2159,6 +2281,10 @@ function ingestTrade(app, m){
   app.m1Agg.tagCurrent(tag);
   app.m5Agg.push(ts, mid, m.size);
   app.m5Agg.tagCurrent(tag);
+  // Akun demo trading live (6k): simpan tick terakhir pair ini lalu cek order pending/SL/TP/stop-out --
+  // O(jumlah order+posisi akun demo), BUKAN O(1500) spt stepEngine, aman dijalankan tiap tick x 12 pair.
+  app.lastTick = { price:mid, ts };
+  demoOnTick(app.asset.sym, mid);
 }
 
 function startConnections(){
@@ -5568,7 +5694,11 @@ function btPlanToggle(side){
 // Jeda kosong di kanan chart (~2cm @ 96 CSS px/inch) -- dipakai bareng oleh drawChart (biar
 // candle tidak mepet tepi) dan handler drag (biar konversi piksel->jumlah-candle presisi,
 // bukan menghitung seolah candle memenuhi seluruh lebar canvas).
-const CHART_RIGHT_GUTTER = 76;
+// Jarak candle<->harga (CHART_RIGHT_GAP, ~1 inch @ 96 CSS px/inch) DIPISAH dari lebar area teks harga
+// itu sendiri (CHART_LABEL_W) -- lihat gutterX di drawChart. Menaikkan CHART_RIGHT_GAP mendorong candle
+// terakhir makin jauh dari area harga TANPA menggeser posisi harga itu sendiri (tetap dekat tepi layar).
+const CHART_RIGHT_GAP = 96, CHART_LABEL_W = 70;
+const CHART_RIGHT_GUTTER = CHART_RIGHT_GAP + CHART_LABEL_W; // total area dicadangkan (dipakai jg utk cw drag/pan)
 
 function connBadge(state){
   if(state==='live') return '<span class="dot live"></span>LIVE';
@@ -5678,7 +5808,7 @@ function zoneColor(type, volStrength){
 // SEKALI di bootstrap (lihat attachChartDragOnce), membaca APP[ACTIVE_SYM] yang selalu terbaru.
 // wheel/mousedown/dblclick aman dipasang ulang tiap render lewat properti (bukan addEventListener)
 // karena otomatis ikut terbuang bersama canvas lamanya -- tidak ada listener nyasar.
-const DRAG = { active:false, startX:0, startEndIdx:0, startTotal:0 };
+const DRAG = { active:false, startX:0, startY:0, startEndIdx:0, startYShift:0, startTotal:0 };
 
 // renderAll() (data + checklist + DOM) cuma jalan 1x/detik -- cukup utk data live, tapi TERLALU
 // LAMBAT utk geser/zoom chart (terasa patah-patah, nunggu sampai 1 detik baru kelihatan gerak).
@@ -5932,6 +6062,12 @@ function attachChartDragOnce(){
     const shiftBars = Math.round(-(e.clientX-DRAG.startX) / Math.max(cw,0.0001));
     view.endIdx = clamp(DRAG.startEndIdx + shiftBars, view.count, DRAG.startTotal);
     view.follow = false;
+    // Geser vertikal: konversi delta piksel -> delta harga pakai skala TERAKHIR yg digambar drawChart
+    // (view._top/_bot/_baseH). Drag ke bawah = ungkap harga lebih tinggi (top/bot naik), spt menarik peta.
+    if(view._baseH>0 && view._top!=null && view._bot!=null){
+      const priceScale = (view._top - view._bot) / view._baseH;
+      view.yShiftPrice = DRAG.startYShift + (e.clientY - DRAG.startY) * priceScale;
+    }
     requestChartRedraw();
   });
   window.addEventListener('mouseup', ()=>{
@@ -5952,11 +6088,12 @@ function wireChartInteraction(canvas, app){
   };
   canvas.onmousedown = (e)=>{
     const view = app.chartView; const total = chartSeries(app).length;
-    DRAG.active = true; DRAG.startX = e.clientX; DRAG.startTotal = total;
+    DRAG.active = true; DRAG.startX = e.clientX; DRAG.startY = e.clientY; DRAG.startTotal = total;
     DRAG.startEndIdx = view.follow ? total : view.endIdx;
+    DRAG.startYShift = view.yShiftPrice || 0;
     canvas.style.cursor = 'grabbing';
   };
-  canvas.ondblclick = ()=>{ app.chartView.follow = true; requestChartRedraw(); };
+  canvas.ondblclick = ()=>{ app.chartView.follow = true; app.chartView.yShiftPrice = 0; requestChartRedraw(); };
 }
 
 function drawChart(canvas, m1, eng, dp, view, app){
@@ -5965,7 +6102,13 @@ function drawChart(canvas, m1, eng, dp, view, app){
   // tinggi panel HARGA tetap identik dgn sebelumnya saat tak ada indikator 'sub' aktif (subs.length===0).
   const act = app ? liveIndActive(app) : [];
   const subs = act.filter(a=>a.def.pane==='sub');
-  const baseWant = window.innerWidth<=760 ? 300 : clamp(360, window.innerHeight*0.54, 620);
+  // Panel trading (6l/6p) ikut mengurangi tinggi chart selama terbuka spy TIDAK pernah menutupi candle
+  // (bukan cuma estetika) -- ltpBarHeight() sinkron dgn LTB_COMPACT_H/LTB_DETAIL_H & CSS .ltb-compact/.ltb-detail.
+  // Tinggi dilebarkan +144px (~1,5 inch @96 CSS px/inch) dari permintaan user -- tepi ATAS/BAWAH, bukan
+  // kiri/kanan (itu urusan lebar, lihat .chart-card). Aman dinaikkan krn tinggi cuma mempengaruhi tata
+  // letak VERTIKAL dalam .detail (yg sudah overflow-y:auto, scroll biasa) -- beda dari lebar yg sempat
+  // memicu clip horizontal saat dicoba margin negatif.
+  const baseWant = window.innerWidth<=760 ? 300 : clamp(280, window.innerHeight*0.54 - ltpBarHeight() + 144, 764);
   const wantH = baseWant + subs.length*(LIVE_SUB_H+LIVE_SUB_GAP);
   if(canvas.style.height !== wantH+'px') canvas.style.height = wantH+'px';
   const ctx = canvas.getContext('2d');
@@ -6000,9 +6143,11 @@ function drawChart(canvas, m1, eng, dp, view, app){
   const vwapBand = data.flatMap(c => c.vwap!=null
     ? [c.vwap, c.vwap+(c.vstd||0), c.vwap-(c.vstd||0), c.vwap+2*(c.vstd||0), c.vwap-2*(c.vstd||0)] : [])
     .filter(v => v>lo0-rng0 && v<hi0+rng0);
-  // Jeda kosong di kanan (CHART_RIGHT_GUTTER, ~2cm @ 96 CSS px/inch) supaya candle terbaru
-  // tidak mepet ke tepi kanan chart -- juga jadi tempat lega utk label VWAP di bawah.
+  // Jeda kosong di kanan (CHART_RIGHT_GUTTER = CHART_RIGHT_GAP+CHART_LABEL_W) supaya candle terbaru
+  // tidak mepet ke area harga -- gutterX = awal area harga (SETELAH jeda ~1 inch), dipakai semua
+  // label/kotak harga di bawah spy posisinya tetap dekat tepi layar asli apa pun CHART_RIGHT_GAP-nya.
   const plotW = Math.max(W - CHART_RIGHT_GUTTER, 10);
+  const gutterX = plotW + CHART_RIGHT_GAP;
   const cw = plotW/data.length;
   const xi = idx => (idx-startIdx+0.5)*cw;
   // Indikator (6j): dihitung thd SELURUH m1 (causal, bkn cuma jendela tampak) spy nilai di tepi kiri jendela
@@ -6023,14 +6168,55 @@ function drawChart(canvas, m1, eng, dp, view, app){
   const indBandF = indBand.filter(v => v!=null && isFinite(v) && v>lo0-rng0 && v<hi0+rng0);
   const hi = Math.max(hi0, ...vwapBand, ...zoneBand, ...indBandF), lo = Math.min(lo0, ...vwapBand, ...zoneBand, ...indBandF);
   const pad = (hi-lo)*0.08 || hi*0.001 || 1;
-  const top=hi+pad, bot=lo-pad;
+  const yShift = view.yShiftPrice || 0; // pergeseran manual vertikal (drag) -- 0 = otomatis spt sebelumnya
+  const top=hi+pad+yShift, bot=lo-pad+yShift;
   const y = (px)=> baseH - ( (px-bot)/(top-bot) )*baseH;
   env.y = y; env.y0 = 0; env.y1 = baseH; env.lo = bot; env.hi = top;
+  view._top = top; view._bot = bot; view._baseH = baseH; // dibaca attachChartDragOnce utk konversi piksel->harga saat digeser
 
-  // grid harga
+  // grid harga -- label dipindah ke KANAN (sumbu kanan, di dalam CHART_RIGHT_GUTTER) sesuai permintaan user,
+  // sejajar dgn label VWAP & tag harga SL/TP (6m) yg sama2 memakai x=plotW+4.
   ctx.strokeStyle = '#171C24'; ctx.lineWidth=1; ctx.font='10px monospace'; ctx.fillStyle='#4E5867';
   for(let i=0;i<=4;i++){ const py = baseH*i/4; ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(W,py); ctx.stroke();
-    ctx.fillText(fmt(top-(top-bot)*i/4, dp), 4, py-2); }
+    ctx.fillText(fmt(top-(top-bot)*i/4, dp), gutterX+4, py-2); }
+
+  // Garis pergantian hari (00:00 UTC) -- vertikal redup + label tanggal kecil, dibatasi 1x/hari lewat
+  // deteksi perubahan "hari UTC" (Math.floor(t/86400000)) antar-candle bersebelahan -- pola deteksi SAMA
+  // PERSIS dgn yg sudah dipakai drawCurve (VWAP) utk memutus garis VWAP lintas sesi, cuma di sini dipakai
+  // utk menggambar garis, bukan memutus garis lain.
+  {
+    let lastDay = null;
+    ctx.font = '9px monospace'; ctx.textAlign = 'left';
+    data.forEach((c,i)=>{
+      const day = Math.floor(c.t/86400000);
+      if(lastDay!==null && day!==lastDay){
+        const cx = i*cw;
+        ctx.strokeStyle = 'rgba(136,147,163,.22)'; ctx.lineWidth = 1; ctx.setLineDash([3,3]);
+        ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, baseH); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = '#5B6472';
+        ctx.fillText(new Date(c.t).toLocaleDateString('id-ID',{day:'2-digit',month:'2-digit'}), cx+3, 10);
+      }
+      lastDay = day;
+    });
+  }
+
+  // Simbol jadwal berita ekonomi (6p) -- titik + garis pendek di atas panel harga pada jam rilis,
+  // warna sesuai dampak (lihat NEWS_COLOR). NEWS_HIT diisi ulang TIAP frame (dipakai newsChartHover
+  // utk hit-test hover) -- posisi x dihitung interpolasi linear antar-candle (bukan snap ke candle
+  // terdekat) spy akurat walau jam rilis tak pas di batas candle.
+  NEWS_HIT = [];
+  if(NEWS.events.length && data.length>1){
+    const periodMs = data[1].t - data[0].t;
+    newsRelevant(app ? app.asset.sym : null).forEach(ev=>{
+      const idxFloat = (ev.ts - data[0].t) / periodMs;
+      if(idxFloat < -1 || idxFloat > data.length) return;
+      const nx = idxFloat*cw + cw/2, col = NEWS_COLOR[ev.impact] || '#8893A3';
+      ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.setLineDash([2,2]);
+      ctx.beginPath(); ctx.moveTo(nx, 0); ctx.lineTo(nx, 20); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(nx, 20, 3.5, 0, Math.PI*2); ctx.fill();
+      NEWS_HIT.push({ x:nx, y:20, ev });
+    });
+  }
 
   // level penting: liquidity eksternal, sl, tp, fvg, mss
   function hline(px, color, dash){
@@ -6095,7 +6281,7 @@ function drawChart(canvas, m1, eng, dp, view, app){
   const lastVwapCandle = [...data].reverse().find(c=>c.vwap!=null);
   if(lastVwapCandle){
     ctx.fillStyle='#7FB8FF'; ctx.font='10px monospace';
-    ctx.fillText('VWAP '+fmt(lastVwapCandle.vwap,dp), plotW+4, y(lastVwapCandle.vwap)-4);
+    ctx.fillText('VWAP '+fmt(lastVwapCandle.vwap,dp), gutterX+4, y(lastVwapCandle.vwap)-4);
   }
 
   // candle
@@ -6109,12 +6295,30 @@ function drawChart(canvas, m1, eng, dp, view, app){
     ctx.fillRect(cx-bw/2, Math.min(yo,yc), bw, Math.max(Math.abs(yc-yo),1));
   });
 
+  // Garis harga AKTIF (harga live sekarang, termasuk candle yg sedang terbentuk) -- putus-putus di seluruh
+  // panel harga + kotak label menonjol di sumbu kanan, warna ikut arah vs candle sebelumnya (hijau naik/
+  // merah turun). Digambar di atas candle (paling jelas) tapi di bawah level trading (6m, digambar belakangan
+  // lewat ltpDrawLevels) spy kalau kebetulan harganya bertumpuk, garis SL/TP/entry yg bisa digeser tetap menang.
+  const lastC = data[data.length-1];
+  if(lastC){
+    const prevC = data.length>1 ? data[data.length-2] : null;
+    const curUp = prevC ? lastC.c >= prevC.c : true;
+    const curColor = curUp ? '#3DDC84' : '#E5484D', yCur = y(lastC.c);
+    ctx.strokeStyle = curColor; ctx.lineWidth = 1; ctx.setLineDash([2,3]);
+    ctx.beginPath(); ctx.moveTo(0, yCur); ctx.lineTo(gutterX+1, yCur); ctx.stroke(); ctx.setLineDash([]); // sampai ke kotak nilainya, bukan cuma plotW
+    ctx.fillStyle = curColor; ctx.fillRect(gutterX+1, yCur-8, CHART_LABEL_W-2, 16);
+    ctx.fillStyle = '#06100A'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
+    ctx.fillText(fmt(lastC.c, dp), gutterX+4, yCur+3);
+  }
+
   // indikator overlay (price, layer 'over') + label; lalu panel 'sub' (RSI/ATR/Volume..) di bawah panel harga
   indOverlays('over');
   if(app){
     ctx.save(); ctx.beginPath(); ctx.rect(0,0,plotW,baseH); ctx.clip();
     try{ indFlushTags(env); }catch(e){ console.error('[label indikator live]', e); }
     ctx.restore();
+    try{ ltpDrawLevels(ctx, env, app.asset.sym); }catch(e){ console.error('[level trading live]', e); }
+    try{ newsDrawTooltip(ctx, plotW); }catch(e){ console.error('[tooltip berita]', e); }
     subs.forEach((a,k)=>{
       const y0 = baseH + LIVE_SUB_GAP + k*(LIVE_SUB_H+LIVE_SUB_GAP), hgt = LIVE_SUB_H;
       ctx.fillStyle = '#070A0E'; ctx.fillRect(0, y0, plotW, hgt);
@@ -6127,7 +6331,7 @@ function drawChart(canvas, m1, eng, dp, view, app){
       if(a.res){ try{ a.def.draw(ctx, a.res, a.inst.params, senv); }catch(e){ liveIndFail(app, a, e); } }
       ctx.restore();
       ctx.font = '10px monospace'; ctx.fillStyle = '#8893A3'; ctx.fillText(a.def.title(a.inst.params), 6, y0+11);
-      ctx.fillStyle = '#4E5867'; ctx.fillText(fmt(sc.hi, sc.dp), plotW+4, y0+9); ctx.fillText(fmt(sc.lo, sc.dp), plotW+4, y0+hgt-2);
+      ctx.fillStyle = '#4E5867'; ctx.fillText(fmt(sc.hi, sc.dp), gutterX+4, y0+9); ctx.fillText(fmt(sc.lo, sc.dp), gutterX+4, y0+hgt-2);
     });
     liveIndLegendValues(app, endIdx-1, data[data.length-1].c);
   }
@@ -6191,12 +6395,13 @@ function renderDetail(){
 
   document.getElementById('detailBody').innerHTML =
     '<div class="card span2 chart-card">'
-      + '<h3>'+asset.sym+' — '+asset.name
+      + '<h3><button class="btn bt-mini" id="pairSearchBtn" title="Cari & ganti pair (ala TradingView)">🔍</button> '+asset.sym+' — '+asset.name
         + '<span class="chart-meta">'
           + '<b class="price-val'+flashCls+'">'+fmt(eng.price,asset.dp)+'</b>'
           + '<span class="bias-chip" style="color:'+(eng.bias==='BULLISH'?'var(--green)':eng.bias==='BEARISH'?'var(--red)':'var(--mut)')+'">'+eng.bias+'</span>'
           + '<span class="tf-toggle" title="Timeframe chart">' + ['M1','M5','M15','M30','H1'].map(tf=>'<button class="tf-btn'+(app.chartTf===tf?' active':'')+'" data-tf="'+tf+'">'+tf+'</button>').join('') + '</span>'
           + '<button class="btn bt-mini bt-indbtn'+(LIVE_IND.panel?' on':'')+'" id="liveIndBtn" title="Tambah / atur indikator di chart">📈 Indikator <span id="liveIndCount">'+(app.inds.length?'('+app.inds.length+')':'')+'</span></button>'
+          + '<button class="btn bt-mini bt-indbtn'+(LTP.open?' on':'')+'" id="liveTradeBtn" title="Panel trading demo (akun bersama, live)">💰 Trading'+(DEMO.positions.length?' ('+DEMO.positions.length+')':'')+'</button>'
           + (()=>{ const tf = app.chartTf; const sec = ({ M1:CFG.m1Sec, M5:CFG.m5Sec, M15:900, M30:1800, H1:3600 })[tf] || CFG.m1Sec; const s=secondsToNextCandle(sec); return '<span class="candle-countdown'+(s<=10?' soon':'')+'" title="Waktu sampai candle '+tf+' baru terbentuk">⏱ '+tf+' '+fmtCountdown(s)+'</span>'; })()
           + conn + ' &nbsp; ' + (app.connMsg||'')
           + (app.chartView.follow ? '' : '<button class="btn-live" id="btnBackLive">▶ Kembali ke Live</button>')
@@ -6215,7 +6420,6 @@ function renderDetail(){
         + '<span><i style="background:rgba(236,64,121,0.55)"></i>Sell-side liquidity</span>'
         + '<span><i style="background:rgba(34,139,171,0.55)"></i>Buy-side liquidity</span>'
       + '</div>'
-      + (app.meta && app.meta.hasTape===false ? '<div class="tapewarn">Sumber ini tidak punya tape volume publik — mesin di sini murni struktur harga (candle), jadi tetap sahih; hanya fitur volume/CVD di luar checklist ini yang terdampak.</div>' : '')
     + '</div>'
 
     + '<div class="card">'
@@ -6279,6 +6483,8 @@ function renderDetail(){
 
   const canvas = document.getElementById('chart');
   if(canvas){
+    ltpWireChartDrag(canvas, app);
+    newsWireChart(canvas);
     wireChartInteraction(canvas, app);
     drawChart(canvas, chartSeries(app), eng, asset.dp, app.chartView, app);
   }
@@ -6288,7 +6494,7 @@ function renderDetail(){
     app.chartTf = tf; app.chartView = app.chartViews[tf]; renderAll();
   }));
   const btnBackLive = document.getElementById('btnBackLive');
-  if(btnBackLive) btnBackLive.addEventListener('click', ()=>{ app.chartView.follow = true; renderAll(); });
+  if(btnBackLive) btnBackLive.addEventListener('click', ()=>{ app.chartView.follow = true; app.chartView.yShiftPrice = 0; renderAll(); });
 }
 
 function st_range(eng){ return eng.range; }
@@ -6300,8 +6506,1040 @@ function renderAll(){
   // Hipotesis/Dampak Kalibrasi/Jurnal SENGAJA tidak diikutkan supaya input angka/checkbox yg
   // sedang diisi user tidak kehilangan fokus/kursor tiap detik krn innerHTML dibangun ulang.
   if(analysisModalOpen() && ANALYSIS_TAB==='overview') renderMarketOverviewTab(document.getElementById('analysisBody'));
+  ltpTick(); // panel trading demo (6l) -- no-op kalau panel tertutup, lihat definisinya
   const liveCount = ASSETS.filter(a=>APP[a.sym] && APP[a.sym].connState==='live').length;
   document.getElementById('globalStatus').textContent = liveCount+' / '+ASSETS.length+' pair LIVE';
+}
+
+/* ============================== 6k. AKUN DEMO TRADING LIVE (mesin) ==============================
+   Akun demo BERSAMA lintas 12 pair (satu saldo/equity, seperti akun broker sungguhan) utk fitur trading
+   lengkap di chart LIVE -- model eksekusi & biaya SAMA PERSIS dgn backtest (blueprint §11): fungsi pure
+   btAssetSpec/btPnl/btHS/btSlip/btRoundLot/btNotional/btCommission/btSizeForRisk/btEntryFill/btExitFill/
+   btLevelError (bagian 6e) DIPAKAI ULANG LANGSUNG, tanpa diubah sedikit pun -- semuanya sudah tidak
+   menyentuh sim.candles/sim.idx, cukup diberi objek pengganti {asset,spec,cfg,tick} (lihat demoPseudoSim).
+
+   BEDA UTAMA dari backtest: tidak ada "candle sekarang" tunggal yg dilangkahi (sim.idx) -- posisi/order di
+   DEMO bisa macam-macam pair sekaligus (field .sym per posisi/order), dan harga acuan tiap posisi/order
+   adalah TICK TERAKHIR pair itu sendiri (app.lastTick, diisi di ingestTrade), bukan indeks candle yg
+   bergerak maju langkah demi langkah. Order pending & SL/TP dicek LANGSUNG thd tick yg baru datang (lihat
+   demoOnTick, dipanggil dari ingestTrade) -- tanpa ambiguitas "same-bar SL+TP" milik backtest (sim.cfg.
+   sameBar), karena urutan tick sungguhan sudah pasti (satu tick cuma satu harga), beda dgn satu candle OHLC
+   yg tidak diketahui urutan intrabar-nya. SL & TP juga selalu divalidasi di sisi berlawanan dari entry
+   (demoLevelError/btLevelError) jadi satu tick tidak mungkin menyentuh keduanya sekaligus.
+
+   Disimpan permanen di localStorage (DEMO_LS_KEY) -- saldo/posisi/order/riwayat tetap ada walau browser
+   di-refresh/ditutup. HANYA disimpan ulang (demoSave) saat ada perubahan state nyata (buka/tutup posisi,
+   isi/batal order, ubah SL/TP, setor/tarik modal) -- TIDAK pada tiap tick/mark-to-market, supaya tidak
+   menulis localStorage puluhan kali/detik lintas 12 pair (floating P/L & level margin dihitung ULANG tiap
+   dibutuhkan oleh demoAccount(), bukan di-cache di posisi, jadi selalu akurat walau tidak disimpan tiap tick).
+
+   TIDAK memanggil renderAll()/drawChart dari ingestTrade/demoOnTick (lihat larangan render-dari-hot-path
+   di 6j) -- cuma mengubah state JS biasa; siklus render 1Hz yg sudah ada (renderAll, bagian 7) membacanya
+   belakangan lewat panel UI-nya (6l, menyusul).
+
+   Batasan jujur: maeP/mfeP (dipakai utk MAE/MFE di riwayat trade) diupdate tiap tick tapi TIDAK ikut
+   demoSave() setiap kali berubah (hanya titik akhirnya tersimpan saat posisi akhirnya ditutup) -- kalau
+   browser ditutup paksa persis di tengah posisi terbuka, MAE/MFE yg tersimpan terakhir kali demoSave()
+   terpanggil (saat posisi dibuka) dipakai lagi sbg titik awal, bukan nilai live terakhir; selisihnya kecil
+   & cuma mempengaruhi statistik tampilan, bukan saldo/equity sungguhan. */
+const DEMO_LS_KEY = 'lfc_demo_account_v1';
+const DEMO_DEFAULT_CAPITAL = 10000;
+function demoDefault(){
+  const now = Date.now();
+  return {
+    balance: DEMO_DEFAULT_CAPITAL, totalDeposited: DEMO_DEFAULT_CAPITAL, totalWithdrawn: 0,
+    leverage: 100, stopOutPct: 50, slipTicks: 2,
+    positions: [], orders: [], closed: [], flows: [{ t:now, amount:DEMO_DEFAULT_CAPITAL, type:'MODAL AWAL' }],
+    points: [], log: [], nextId: 1,
+    peak: DEMO_DEFAULT_CAPITAL, maxDD: 0, maxDDPct: 0, ddRun: 0, ddRunMax: 0, lastEq: DEMO_DEFAULT_CAPITAL,
+  };
+}
+function demoLoad(){
+  try {
+    const raw = localStorage.getItem(DEMO_LS_KEY);
+    if(!raw) return demoDefault();
+    const d = JSON.parse(raw);
+    if(!d || !Array.isArray(d.positions) || !Array.isArray(d.orders) || !Array.isArray(d.closed)) return demoDefault();
+    return Object.assign(demoDefault(), d);
+  } catch(e){ return demoDefault(); }
+}
+function demoSave(){
+  try { localStorage.setItem(DEMO_LS_KEY, JSON.stringify(DEMO)); } catch(e){}
+}
+let DEMO = demoLoad();
+function demoLog(type, msg){
+  DEMO.log.push({ t:Date.now(), type, msg });
+  if(DEMO.log.length>800) DEMO.log.shift();
+}
+// Objek pengganti `sim` utk fungsi pure bt* -- lihat catatan seksi di atas.
+function demoPseudoSim(sym){
+  const app = APP[sym], spec = btAssetSpec(app.asset);
+  return { asset:app.asset, spec, tick:tickSizeFor(app),
+    cfg:{ spreadTicks:spec.spreadTicks, slipTicks:DEMO.slipTicks, commPct:spec.commPct, commLot:spec.commLot } };
+}
+function demoMid(sym){ const app = APP[sym]; return app && app.lastTick ? app.lastTick.price : null; }
+function demoAccount(){
+  let floating = 0, used = 0;
+  DEMO.positions.forEach(p=>{
+    used += p.margin;
+    const mid = demoMid(p.sym);
+    if(mid!=null){
+      const ps = demoPseudoSim(p.sym), hs = btHS(ps);
+      const ex = p.side==='buy' ? mid - hs : mid + hs;
+      floating += btPnl(ps, p.side, p.entry, ex, p.size);
+    }
+  });
+  const equity = DEMO.balance + floating;
+  return { balance:DEMO.balance, floating, equity, used, free:equity-used, level: used>0 ? equity/used*100 : null };
+}
+function demoLevelError(side, ref, sl, tp){ return btLevelError(side, ref, sl, tp); }
+function demoOrderPriceError(sym, type, side, price){
+  const mid = demoMid(sym);
+  if(mid==null) return 'Belum ada harga live utk '+sym+'.';
+  const ps = demoPseudoSim(sym), hs = btHS(ps);
+  const ask = mid+hs, bid = mid-hs;
+  if(side==='buy'  && type==='limit' && !(price<ask)) return 'BUY LIMIT harus di bawah harga sekarang.';
+  if(side==='buy'  && type==='stop'  && !(price>ask)) return 'BUY STOP harus di atas harga sekarang.';
+  if(side==='sell' && type==='limit' && !(price>bid)) return 'SELL LIMIT harus di atas harga sekarang.';
+  if(side==='sell' && type==='stop'  && !(price<bid)) return 'SELL STOP harus di bawah harga sekarang.';
+  return null;
+}
+function demoOpenFilled(sym, side, size, fill, sl, tp, tag){
+  const ps = demoPseudoSim(sym);
+  if(size < ps.spec.minLot - 1e-12) return { ok:false, msg:'Ukuran minimum '+ps.spec.minLot+' lot.' };
+  const need = btNotional(ps, size, fill)/DEMO.leverage;
+  const acc = demoAccount();
+  if(need > acc.free + 1e-9) return { ok:false, msg:'Margin tidak cukup (butuh '+need.toFixed(2)+', bebas '+Math.max(acc.free,0).toFixed(2)+').' };
+  const comm = btCommission(ps, size, fill);
+  DEMO.balance -= comm;
+  const pos = { id:DEMO.nextId++, sym, side, size, entry:fill, entryTs:Date.now(), sl, tp, sl0:sl, tp0:tp,
+    tag:tag||'MANUAL', commIn:comm, margin:need, maeP:fill, mfeP:fill };
+  DEMO.positions.push(pos);
+  demoLog('OPEN', sym+' '+(side==='buy'?'BUY ':'SELL ')+size+' lot @ '+fill.toFixed(ps.asset.dp)+' ['+pos.tag+']');
+  demoSave();
+  return { ok:true, pos };
+}
+function demoOpenMarket(sym, side, size, sl, tp, tag){
+  const mid = demoMid(sym);
+  if(mid==null) return { ok:false, msg:'Belum ada harga live utk '+sym+'.' };
+  const ps = demoPseudoSim(sym);
+  const fill = btEntryFill(ps, side, mid);
+  const err = demoLevelError(side, fill, sl, tp);
+  if(err) return { ok:false, msg:err };
+  return demoOpenFilled(sym, side, size, fill, sl, tp, tag);
+}
+function demoPlaceOrder(sym, type, side, size, price, sl, tp, tag){
+  if(!(price>0)) return { ok:false, msg:'Harga order tidak valid.' };
+  const perr = demoOrderPriceError(sym, type, side, price);
+  if(perr) return { ok:false, msg:perr };
+  const err = demoLevelError(side, price, sl, tp);
+  if(err) return { ok:false, msg:err };
+  const ps = demoPseudoSim(sym);
+  if(size < ps.spec.minLot - 1e-12) return { ok:false, msg:'Ukuran minimum '+ps.spec.minLot+' lot.' };
+  const o = { id:DEMO.nextId++, sym, type, side, size, price, sl, tp, tag:tag||'MANUAL', createdTs:Date.now() };
+  DEMO.orders.push(o);
+  demoLog('ORDER', sym+' '+(side==='buy'?'BUY ':'SELL ')+type.toUpperCase()+' '+size+' lot @ '+price.toFixed(ps.asset.dp));
+  demoSave();
+  return { ok:true, order:o };
+}
+function demoCancelOrder(id){
+  const k = DEMO.orders.findIndex(o=>o.id===id);
+  if(k<0) return false;
+  const o = DEMO.orders.splice(k,1)[0];
+  demoLog('CANCEL', o.sym+' order #'+o.id+' dibatalkan');
+  demoSave();
+  return true;
+}
+function demoModifyOrder(id, patch){
+  const o = DEMO.orders.find(x=>x.id===id);
+  if(!o) return { ok:false, msg:'Order tidak ditemukan.' };
+  const priceChanged = patch.price!==undefined;
+  const price = priceChanged ? patch.price : o.price;
+  const sl = patch.sl!==undefined ? patch.sl : o.sl, tp = patch.tp!==undefined ? patch.tp : o.tp;
+  if(!(price>0)) return { ok:false, msg:'Harga order tidak valid.' };
+  const err = (priceChanged ? demoOrderPriceError(o.sym, o.type, o.side, price) : null) || demoLevelError(o.side, price, sl, tp);
+  if(err) return { ok:false, msg:err };
+  o.price = price; o.sl = sl; o.tp = tp;
+  demoLog('MODIFY', o.sym+' order #'+id+' diubah');
+  demoSave();
+  return { ok:true };
+}
+function demoModifyPosition(id, sl, tp){
+  const pos = DEMO.positions.find(p=>p.id===id);
+  if(!pos) return { ok:false, msg:'Posisi tidak ditemukan.' };
+  const mid = demoMid(pos.sym);
+  if(mid==null) return { ok:false, msg:'Belum ada harga live.' };
+  const ps = demoPseudoSim(pos.sym), hs = btHS(ps);
+  const ref = pos.side==='buy' ? mid - hs : mid + hs;
+  const err = demoLevelError(pos.side, ref, sl, tp);
+  if(err) return { ok:false, msg:err };
+  pos.sl = sl; pos.tp = tp;
+  demoLog('MODIFY', pos.sym+' #'+id+' SL/TP diubah');
+  demoSave();
+  return { ok:true };
+}
+function demoClosePos(pos, exitPrice, reason){
+  const ps = demoPseudoSim(pos.sym);
+  const gross = btPnl(ps, pos.side, pos.entry, exitPrice, pos.size);
+  const commOut = btCommission(ps, pos.size, exitPrice);
+  DEMO.balance += gross - commOut;
+  const net = gross - pos.commIn - commOut;
+  const risk = pos.sl0!=null ? Math.abs(btPnl(ps, pos.side, pos.entry, pos.sl0, pos.size)) : null;
+  const tr = { id:pos.id, sym:pos.sym, tag:pos.tag, side:pos.side, size:pos.size, entry:pos.entry, exit:exitPrice,
+    entryTs:pos.entryTs, exitTs:Date.now(), gross, comm:pos.commIn+commOut, net, r: risk>0 ? net/risk : null,
+    reason, sl0:pos.sl0, tp0:pos.tp0,
+    mae:btPnl(ps, pos.side, pos.entry, pos.maeP, pos.size), mfe:btPnl(ps, pos.side, pos.entry, pos.mfeP, pos.size) };
+  DEMO.positions.splice(DEMO.positions.indexOf(pos),1);
+  DEMO.closed.push(tr);
+  demoLog('CLOSE', pos.sym+' #'+pos.id+' ['+reason+'] -> '+(net>=0?'+':'')+net.toFixed(2));
+  return tr;
+}
+function demoClosePosition(id, reason){
+  const pos = DEMO.positions.find(p=>p.id===id);
+  if(!pos) return null;
+  const mid = demoMid(pos.sym);
+  if(mid==null) return null;
+  const ps = demoPseudoSim(pos.sym);
+  const tr = demoClosePos(pos, btExitFill(ps, pos.side, mid), reason||'MANUAL');
+  demoSave();
+  return tr;
+}
+function demoCloseAll(reason){
+  DEMO.positions.slice().forEach(p=>demoClosePosition(p.id, reason));
+}
+function demoDeposit(amount){
+  if(!(amount>0)) return { ok:false, msg:'Jumlah harus > 0.' };
+  DEMO.balance += amount; DEMO.totalDeposited += amount; DEMO.peak += amount; DEMO.lastEq += amount;
+  const last = DEMO.points[DEMO.points.length-1];
+  if(last){ last.equity += amount; last.balance += amount; last.flow += amount; }
+  DEMO.flows.push({ t:Date.now(), amount, type:'SETOR' });
+  demoLog('DEPOSIT', 'Tambah modal +'+amount.toFixed(2));
+  demoSave();
+  return { ok:true };
+}
+function demoWithdraw(amount){
+  if(!(amount>0)) return { ok:false, msg:'Jumlah harus > 0.' };
+  const acc = demoAccount();
+  const maxW = Math.min(acc.balance, acc.free);
+  if(amount > maxW + 1e-9) return { ok:false, msg:'Maksimum penarikan '+Math.max(maxW,0).toFixed(2)+' (saldo & margin bebas).' };
+  DEMO.balance -= amount; DEMO.totalWithdrawn += amount; DEMO.peak = Math.max(DEMO.peak - amount, 0); DEMO.lastEq -= amount;
+  const last = DEMO.points[DEMO.points.length-1];
+  if(last){ last.equity -= amount; last.balance -= amount; last.flow -= amount; }
+  DEMO.flows.push({ t:Date.now(), amount:-amount, type:'TARIK' });
+  demoLog('WITHDRAW', 'Tarik modal -'+amount.toFixed(2));
+  demoSave();
+  return { ok:true };
+}
+function demoFillOrders(sym, mid){
+  if(!DEMO.orders.length) return;
+  const ps = demoPseudoSim(sym), hs = btHS(ps), slip = btSlip(ps);
+  const ask = mid+hs, bid = mid-hs;
+  DEMO.orders.slice().forEach(o=>{
+    if(o.sym!==sym) return;
+    let fill = null;
+    if(o.side==='buy'){
+      if(o.type==='limit' && ask <= o.price) fill = Math.min(o.price, ask);
+      if(o.type==='stop'  && ask >= o.price) fill = Math.max(o.price, ask) + slip;
+    } else {
+      if(o.type==='limit' && bid >= o.price) fill = Math.max(o.price, bid);
+      if(o.type==='stop'  && bid <= o.price) fill = Math.min(o.price, bid) - slip;
+    }
+    if(fill==null) return;
+    DEMO.orders.splice(DEMO.orders.indexOf(o),1);
+    const r = demoOpenFilled(sym, o.side, o.size, fill, o.sl, o.tp, o.tag);
+    if(!r.ok) demoLog('ORDER', sym+' order #'+o.id+' batal saat terisi: '+r.msg);
+    demoSave();
+  });
+}
+function demoCheckExits(sym, mid){
+  const ps = demoPseudoSim(sym), hs = btHS(ps);
+  let changed = false;
+  DEMO.positions.slice().forEach(p=>{
+    if(p.sym!==sym) return;
+    const long = p.side==='buy';
+    const ex = long ? mid-hs : mid+hs; // sisi penutup posisi (BID utk long, ASK utk short)
+    if(long){ if(ex<p.maeP) p.maeP=ex; if(ex>p.mfeP) p.mfeP=ex; }
+    else    { if(ex>p.maeP) p.maeP=ex; if(ex<p.mfeP) p.mfeP=ex; }
+    const hitSL = p.sl!=null && (long ? ex <= p.sl : ex >= p.sl);
+    const hitTP = p.tp!=null && (long ? ex >= p.tp : ex <= p.tp);
+    // Tidak ada ambiguitas "sama tick kena SL & TP" spt backtest (sim.cfg.sameBar) -- lihat catatan seksi.
+    if(hitSL){ demoClosePos(p, ex, 'SL'); changed = true; }
+    else if(hitTP){ demoClosePos(p, ex, 'TP'); changed = true; }
+  });
+  if(changed) demoSave();
+}
+function demoStopOutCheck(){
+  const acc = demoAccount();
+  if(acc.used>0 && acc.level!=null && acc.level < DEMO.stopOutPct){
+    demoLog('STOPOUT', 'Margin level '+acc.level.toFixed(1)+'% < '+DEMO.stopOutPct+'% -- semua posisi ditutup paksa');
+    demoCloseAll('STOP-OUT');
+    demoSave();
+  }
+}
+// Dipanggil dari ingestTrade(app,m) utk SETIAP tick (lihat hook di bagian 6).
+function demoOnTick(sym, mid){
+  if(DEMO.orders.some(o=>o.sym===sym)) demoFillOrders(sym, mid);
+  if(DEMO.positions.some(p=>p.sym===sym)) demoCheckExits(sym, mid);
+  if(DEMO.positions.length) demoStopOutCheck();
+}
+
+/* ============================== 6l. CHART LIVE: PANEL TRADING (UI) ==============================
+   Panel trading demo di chart live -- "seperti Panel Order di Backtest", docked sbg panel mengambang
+   (bukan modal) supaya bisa dipakai SAMBIL melihat chart live jalan, mirip TradingView. Mengikuti pola
+   panel statis #liveIndPanel (6j) APA ADANYA krn masalah & solusinya identik: renderDetail() me-replace
+   #detailBody.innerHTML PENUH tiap 1Hz (renderAll) -- kalau form Panel Order (banyak input angka/select)
+   ada DI DALAM markup yg diganti itu, fokus/kursor yg sedang diketik user hilang tiap detik. Solusinya
+   SAMA: <aside id="liveTradePanel"> ditulis SEKALI sbg HTML statis (sibling #liveIndPanel, bukan child
+   #detailBody) -- renderDetail() tidak pernah menyentuhnya. Listener form dipasang SEKALI di ltpInit()
+   (dipanggil sekali saat BOOTSTRAP); tombol togglenya ("💰 Trading" di header kartu chart) AMAN ikut
+   dibangun ulang tiap render (cuma tombol, tanpa state input) persis spt "📈 Indikator", listener-nya
+   didelegasikan ke #detailBody (elemen stabil) bukan dipasang ulang per tombol.
+
+   SEBAGIAN BESAR LOGIKA DIPORT NYARIS VERBATIM dari Panel Order Backtest (6f: btPlan/btPlanText/btExecute/
+   btDoMoney/btPortfolioHtml, baris ~3858-4030) -- cuma "sim" (candle sekarang yg bergerak maju via sim.idx)
+   diganti "demoMid(sym)" (tick live pair itu, lihat 6k), dan "sim.positions/orders" (satu pair) diganti
+   "DEMO.positions/orders" (SEMUA pair, difilter per baris lewat field .sym) krn akun demo ini bersama
+   lintas 12 pair. Semua helper murni (btMoney/btNum/btPctTxt/btCls/btDT/btHS/btPnl/btCommission/
+   btNotional/btSizeForRisk/btRoundLot/btEntryFill/btTickRound/btAssetSpec) DIPAKAI ULANG LANGSUNG, tak
+   diubah sedikit pun.
+
+   SL/TP posisi terbuka BISA diedit inline (input <input class="bt-in" data-pos data-k>, commit on
+   change) -- dibangun ulang tiap 1Hz (ltpRenderPositions) TAPI dijaga pakai pola yg SAMA PERSIS dgn
+   btRenderTab (6f, baris ~3986-3990): kalau activeElement ada di dalam kontainer & sedang diketik
+   (INPUT/SELECT), rebuild dilewati -- tak akan merebut fokus dari user yg sedang mengetik SL/TP. Form
+   Panel Order sendiri (ltpOprice/ltpSizeVal/dst.) TIDAK PERNAH di-rebuild sama sekali (beda dari tabel
+   posisi) -- isinya dibaca on-demand oleh ltpPlan(), bukan ditulis ulang, jadi 100% aman dari masalah ini.
+
+   Belum ada di panel ini (menyusul fitur terpisah): SL/TP yang bisa DIGESER LANGSUNG di chart live
+   (seperti "Rencana BUY/SELL" di backtest, 6i) -- utk sekarang SL/TP diubah lewat input tabel Posisi
+   Terbuka saja. Tab Riwayat Trade/Laporan/Kurva Ekuitas (spt backtest) juga belum ada -- panel ini baru
+   mencakup Akun + Panel Order + Posisi/Order terbuka, cukup utk benar-benar bertransaksi & memantau,
+   tapi belum utk menganalisis kinerja historis akun demo. */
+const LTP = { open:false, expanded:true, tab:'order' };
+// HARUS sinkron dgn CSS .ltb-compact{height:54px} & .ltb-detail{max-height:300px} di atas -- dipakai
+// ltpBarHeight() utk (a) mengurangi tinggi chart selama panel terbuka (baseWant, 7. RENDER) dan
+// (b) padding-bottom #detailBody spy kartu lain (Market Context dst.) tetap bisa digulir keluar dari
+// balik bar -- lihat ltpSyncReservedSpace().
+const LTB_COMPACT_H = 54, LTB_DETAIL_H = 300;
+function ltpBarHeight(){
+  if(!LTP.open) return 0;
+  return LTB_COMPACT_H + (LTP.expanded ? (window.innerWidth<=900 ? window.innerHeight*0.6 : LTB_DETAIL_H) : 0);
+}
+function ltpSyncReservedSpace(){
+  const body = document.getElementById('detailBody');
+  if(body) body.style.paddingBottom = LTP.open ? (ltpBarHeight()+16)+'px' : '';
+}
+function ltpSwitchTab(tab){
+  LTP.tab = tab;
+  const panel = document.getElementById('liveTradePanel'); if(!panel) return;
+  panel.querySelectorAll('.ltb-tabs .tab-btn, .tabbar .tab-btn').forEach(b=>b.classList.toggle('active', b.getAttribute('data-ltbtab')===tab));
+  panel.querySelectorAll('.ltb-pane').forEach(p=>{ p.style.display = p.getAttribute('data-ltpane')===tab ? '' : 'none'; });
+}
+function ltpToggleExpand(){
+  LTP.expanded = !LTP.expanded;
+  const det = document.getElementById('ltpDetail'); if(det) det.style.display = LTP.expanded ? '' : 'none';
+  const btn = document.getElementById('ltpExpandBtn'); if(btn) btn.textContent = LTP.expanded ? '▾' : '▴';
+  ltpSyncReservedSpace();
+}
+function ltpOpen(){
+  LTP.open = true;
+  const panel = document.getElementById('liveTradePanel'); if(panel) panel.style.display='';
+  const det = document.getElementById('ltpDetail'); if(det) det.style.display = LTP.expanded ? '' : 'none';
+  const btn = document.getElementById('ltpExpandBtn'); if(btn) btn.textContent = LTP.expanded ? '▾' : '▴';
+  ltpSyncReservedSpace();
+  ltpRenderAll(true);
+}
+function ltpClose(){
+  LTP.open = false;
+  const panel = document.getElementById('liveTradePanel'); if(panel) panel.style.display='none';
+  ltpSyncReservedSpace();
+}
+function ltpToggle(){ if(LTP.open) ltpClose(); else ltpOpen(); }
+function ltpOrderMsg(msg, cls){
+  const el = document.getElementById('ltpOrderMsg'); if(!el) return;
+  el.textContent = msg||''; el.className = 'bt-ordermsg'+(cls?' '+cls:'');
+}
+// ATR pair ini "sekarang" (live) -- sama persis pola btAtrNow (6f): pakai cache mesin kalau ada,
+// selain itu hitung dari 40 candle M1 terakhir. Dipakai mode SL "x ATR" di Panel Order.
+function ltpAtrNow(sym){
+  const app = APP[sym];
+  if(app.engine && app.engine.atr) return app.engine.atr;
+  const a = computeATRSeries(app.m1Agg.closed.slice(-40), 14);
+  return lastValid(a);
+}
+// Port btPlan (6f) -- baca form Panel Order, hitung entry/SL/TP/ukuran/margin/risiko utk SATU sisi
+// (buy/sell), TANPA mengeksekusi apa pun. sym = pair yg SEDANG ditampilkan (ACTIVE_SYM).
+function ltpPlan(side){
+  const sym = ACTIVE_SYM, mid = demoMid(sym);
+  if(mid==null) return { ok:false, msg:'Belum ada harga live utk '+sym+'.' };
+  const ps = demoPseudoSim(sym);
+  const otype = document.getElementById('ltpOtype').value;
+  let entry;
+  if(otype==='market') entry = btEntryFill(ps, side, mid);
+  else { entry = parseFloat(document.getElementById('ltpOprice').value); if(!(entry>0)) return { ok:false, msg:'Isi harga order (Limit/Stop).' }; }
+  const slMode = document.getElementById('ltpSlMode').value, tpMode = document.getElementById('ltpTpMode').value;
+  const slVal = parseFloat(document.getElementById('ltpSlVal').value), tpVal = parseFloat(document.getElementById('ltpTpVal').value);
+  let sl = null, tp = null;
+  if(slMode==='atr'){
+    const atr = ltpAtrNow(sym);
+    if(!(slVal>0) || !(atr>0)) return { ok:false, msg:'SL × ATR tidak valid (ATR belum tersedia?).' };
+    sl = side==='buy' ? entry - slVal*atr : entry + slVal*atr;
+  } else if(slMode==='price'){
+    if(!(slVal>0)) return { ok:false, msg:'Isi harga SL.' };
+    sl = slVal;
+  }
+  sl = btTickRound(ps, sl);
+  if(tpMode==='r'){
+    if(sl==null) return { ok:false, msg:'TP × R butuh SL.' };
+    if(!(tpVal>0)) return { ok:false, msg:'TP × R tidak valid.' };
+    const d = Math.abs(entry - sl);
+    tp = side==='buy' ? entry + tpVal*d : entry - tpVal*d;
+  } else if(tpMode==='price'){
+    if(!(tpVal>0)) return { ok:false, msg:'Isi harga TP.' };
+    tp = tpVal;
+  }
+  tp = btTickRound(ps, tp);
+  const sizeMode = document.getElementById('ltpSizeMode').value, sv = parseFloat(document.getElementById('ltpSizeVal').value);
+  if(!(sv>0)) return { ok:false, msg:'Ukuran tidak valid.' };
+  let size;
+  if(sizeMode==='lot') size = btRoundLot(ps, sv);
+  else {
+    if(sl==null) return { ok:false, msg:'Mode Risiko % butuh SL.' };
+    size = btSizeForRisk(ps, demoAccount().equity*sv/100, entry, sl);
+  }
+  if(size < ps.spec.minLot - 1e-12) return { ok:false, msg:'Ukuran terhitung < minimum '+ps.spec.minLot+' lot.' };
+  return { ok:true, side, otype, size, entry, sl, tp,
+    riskAmt: sl!=null ? Math.abs(btPnl(ps, side, entry, sl, size)) : null,
+    margin: btNotional(ps, size, entry)/DEMO.leverage };
+}
+function ltpPlanText(side){
+  const p = ltpPlan(side);
+  const lbl = side==='buy' ? 'BUY' : 'SELL';
+  if(!p.ok) return '<div class="bt-pv '+side+'"><b>'+lbl+'</b> <span class="bt-muted">'+p.msg+'</span></div>';
+  const dp = APP[ACTIVE_SYM].asset.dp;
+  return '<div class="bt-pv '+side+'"><b>'+lbl+'</b> '+p.size+' lot @ '+btNum(p.entry,dp)
+    + ' · SL '+(p.sl!=null?btNum(p.sl,dp):'—')+' · TP '+(p.tp!=null?btNum(p.tp,dp):'—')
+    + '<br><span class="bt-muted">Risiko '+(p.riskAmt!=null?btMoney(p.riskAmt):'—')+' · Margin '+btMoney(p.margin)+'</span></div>';
+}
+function ltpExecute(side){
+  const sym = ACTIVE_SYM, p = ltpPlan(side);
+  if(!p.ok){ ltpOrderMsg(p.msg, 'bad'); return; }
+  const r = p.otype==='market'
+    ? demoOpenMarket(sym, side, p.size, p.sl, p.tp, 'MANUAL')
+    : demoPlaceOrder(sym, p.otype, side, p.size, p.entry, p.sl, p.tp, 'MANUAL');
+  if(!r.ok){ ltpOrderMsg(r.msg, 'bad'); return; }
+  ltpOrderMsg(p.otype==='market' ? (side==='buy'?'BUY':'SELL')+' dieksekusi.' : 'Order '+p.otype.toUpperCase()+' dipasang.', 'ok');
+  ltpRenderAll(true);
+}
+function ltpDoMoney(kind){
+  const amt = parseFloat(document.getElementById('ltpMoneyAmt').value);
+  const r = kind==='dep' ? demoDeposit(amt) : demoWithdraw(amt);
+  ltpOrderMsg(r.ok ? (kind==='dep'?'Modal ditambah ':'Modal ditarik ')+btMoney(amt) : r.msg, r.ok?'ok':'bad');
+  ltpRenderAll(true);
+}
+function ltpUpdatePreview(){
+  const el = document.getElementById('ltpPreview'); if(!el) return;
+  el.innerHTML = ltpPlanText('buy') + ltpPlanText('sell');
+}
+function ltpRenderAccount(){
+  const el = document.getElementById('ltpAcc'); if(!el) return;
+  const acc = demoAccount();
+  const net = acc.equity - DEMO.totalDeposited + DEMO.totalWithdrawn;
+  const chip = (l,v,cls)=>'<div class="ltb-stat"><span>'+l+'</span><b class="'+(cls||'')+'">'+v+'</b></div>';
+  el.innerHTML =
+      chip('Saldo', btMoney(acc.balance))
+    + chip('Ekuitas', btMoney(acc.equity), btCls(net))
+    + chip('P/L Mengambang', btMoney(acc.floating, true), btCls(acc.floating))
+    + chip('Margin Terpakai', btMoney(acc.used))
+    + chip('Margin Bebas', btMoney(acc.free))
+    + chip('Level Margin', acc.level==null ? '—' : acc.level.toFixed(0)+'%', acc.level!=null && acc.level<DEMO.stopOutPct*2 ? 'bt-neg' : '')
+    + chip('P/L Bersih', btMoney(net, true), btCls(net));
+}
+function ltpRenderAccountMini(){
+  const el = document.getElementById('ltpAccMini'); if(!el) return;
+  const acc = demoAccount();
+  const chip = (l,v,cls)=>'<div class="ltb-stat"><span>'+l+'</span><b class="'+(cls||'')+'">'+v+'</b></div>';
+  el.innerHTML = chip('Ekuitas', btMoney(acc.equity)) + chip('P/L Mengambang', btMoney(acc.floating, true), btCls(acc.floating));
+}
+function ltpRenderOrderHeader(){
+  const sym = ACTIVE_SYM, app = APP[sym];
+  const lbl = document.getElementById('ltpPairLabel'); if(lbl) lbl.textContent = sym;
+  const mid = demoMid(sym);
+  const bidEl = document.getElementById('ltpBid'), askEl = document.getElementById('ltpAsk');
+  if(mid==null){ if(bidEl) bidEl.textContent='—'; if(askEl) askEl.textContent='—'; return; }
+  const ps = demoPseudoSim(sym), hs = btHS(ps), dp = app.asset.dp;
+  if(bidEl) bidEl.textContent = btNum(mid-hs, dp);
+  if(askEl) askEl.textContent = btNum(mid+hs, dp);
+}
+function ltpPositionsHtml(){
+  if(!DEMO.positions.length) return '<div class="bt-muted">Tidak ada posisi terbuka.</div>';
+  const rows = DEMO.positions.slice().reverse().map(p=>{
+    const app = APP[p.sym], dp = app ? app.asset.dp : 2;
+    const mid = demoMid(p.sym);
+    let ex = null, pnl = null, riskR = null;
+    if(mid!=null){
+      const ps = demoPseudoSim(p.sym), hs = btHS(ps);
+      ex = p.side==='buy' ? mid-hs : mid+hs;
+      pnl = btPnl(ps, p.side, p.entry, ex, p.size);
+      const risk = p.sl0!=null ? Math.abs(btPnl(ps, p.side, p.entry, p.sl0, p.size)) : null;
+      riskR = risk>0 ? pnl/risk : null;
+    }
+    return '<tr><td>'+p.sym+'</td><td><span class="bt-side '+p.side+'">'+(p.side==='buy'?'BUY':'SELL')+'</span></td><td>'+p.size+'</td>'
+      + '<td>'+btNum(p.entry,dp)+'</td><td>'+(ex!=null?btNum(ex,dp):'—')+'</td>'
+      + '<td><input class="bt-in" data-pos="'+p.id+'" data-k="sl" type="number" step="any" value="'+(p.sl!=null?p.sl:'')+'"></td>'
+      + '<td><input class="bt-in" data-pos="'+p.id+'" data-k="tp" type="number" step="any" value="'+(p.tp!=null?p.tp:'')+'"></td>'
+      + '<td class="'+btCls(pnl)+'">'+(pnl!=null?btMoney(pnl,true):'—')+'</td><td class="'+btCls(pnl)+'">'+(riskR!=null?riskR.toFixed(2)+'R':'—')+'</td>'
+      + '<td><span class="an-badge dry">'+p.tag+'</span></td>'
+      + '<td><button class="btn bt-mini" data-act="close" data-id="'+p.id+'">Tutup</button></td></tr>';
+  }).join('');
+  return '<table class="an-table"><thead><tr><th>Pair</th><th>Sisi</th><th>Lot</th><th>Masuk</th><th>Kini</th><th>SL</th><th>TP</th><th>P/L</th><th>R</th><th>Asal</th><th>Aksi</th></tr></thead><tbody>'+rows+'</tbody></table>';
+}
+function ltpOrdersHtml(){
+  if(!DEMO.orders.length) return '<div class="bt-muted">Tidak ada order pending.</div>';
+  const rows = DEMO.orders.slice().reverse().map(o=>{
+    const app = APP[o.sym], dp = app ? app.asset.dp : 2;
+    return '<tr><td>'+o.sym+'</td><td>'+o.type.toUpperCase()+'</td><td><span class="bt-side '+o.side+'">'+(o.side==='buy'?'BUY':'SELL')+'</span></td><td>'+o.size+'</td>'
+      + '<td>'+btNum(o.price,dp)+'</td><td>'+(o.sl!=null?btNum(o.sl,dp):'—')+'</td><td>'+(o.tp!=null?btNum(o.tp,dp):'—')+'</td>'
+      + '<td><button class="btn bt-mini" data-act="cancel" data-id="'+o.id+'">Batal</button></td></tr>';
+  }).join('');
+  return '<table class="an-table"><thead><tr><th>Pair</th><th>Tipe</th><th>Sisi</th><th>Lot</th><th>Harga</th><th>SL</th><th>TP</th><th>Aksi</th></tr></thead><tbody>'+rows+'</tbody></table>';
+}
+// Pola SAMA PERSIS dgn btRenderTab (6f, baris ~3986-3990): kalau activeElement sedang di dalam
+// kontainer ini DAN sedang diketik (INPUT/SELECT), lewati rebuild -- jangan rebut fokus user.
+function ltpRenderPositions(force){
+  const el = document.getElementById('ltpPositions'); if(!el) return;
+  const ae = document.activeElement;
+  if(!force && ae && el.contains(ae) && (ae.tagName==='INPUT'||ae.tagName==='SELECT')) return;
+  const html = ltpPositionsHtml();
+  if(el._h !== html){ el.innerHTML = html; el._h = html; }
+}
+function ltpRenderOrders(force){
+  const el = document.getElementById('ltpOrders'); if(!el) return;
+  const ae = document.activeElement;
+  if(!force && ae && el.contains(ae) && (ae.tagName==='INPUT'||ae.tagName==='SELECT')) return;
+  const html = ltpOrdersHtml();
+  if(el._h !== html){ el.innerHTML = html; el._h = html; }
+}
+function ltpRenderAll(force){
+  ltpRenderAccount();
+  ltpRenderAccountMini();
+  ltpRenderOrderHeader();
+  ltpUpdatePreview();
+  ltpRenderPositions(force);
+  ltpRenderOrders(force);
+}
+// Dipanggil tiap 1Hz dari renderAll() -- no-op kalau panel tertutup. Aman dipanggil sesering itu krn
+// tak ada satu pun elemen di sini yg innerHTML-nya diganti SAAT user mengetik (lihat penjaga di atas),
+// dan form Panel Order sendiri tak pernah disentuh fungsi ini sama sekali (lihat komentar seksi).
+function ltpTick(){
+  if(!LTP.open) return;
+  ltpRenderAccount();
+  ltpRenderAccountMini();
+  ltpRenderOrderHeader();
+  ltpUpdatePreview();
+  ltpRenderPositions();
+  ltpRenderOrders();
+}
+function ltpInit(){
+  const panel = document.getElementById('liveTradePanel'); if(!panel) return;
+  document.getElementById('ltpCloseBtn').addEventListener('click', ()=>ltpClose());
+  document.getElementById('ltpExpandBtn').addEventListener('click', ltpToggleExpand);
+  panel.querySelectorAll('.tabbar .tab-btn').forEach(b=>b.addEventListener('click', ()=>ltpSwitchTab(b.getAttribute('data-ltbtab'))));
+  document.getElementById('ltpOtype').addEventListener('change', ()=>{
+    document.getElementById('ltpPriceWrap').style.display = document.getElementById('ltpOtype').value==='market' ? 'none' : '';
+    ltpUpdatePreview();
+  });
+  ['ltpOprice','ltpSizeVal','ltpSlMode','ltpSlVal','ltpTpMode','ltpTpVal'].forEach(id=>{
+    const e = document.getElementById(id); if(!e) return;
+    e.addEventListener('input', ltpUpdatePreview);
+    e.addEventListener('change', ltpUpdatePreview);
+  });
+  document.getElementById('ltpSizeMode').addEventListener('change', ()=>{
+    const a = APP[ACTIVE_SYM].asset, spec = btAssetSpec(a), sv = document.getElementById('ltpSizeMode').value;
+    const el = document.getElementById('ltpSizeVal');
+    el.step = sv==='lot' ? spec.lotStep : 'any';
+    el.value = sv==='lot' ? spec.minLot*10 : 1;
+    ltpUpdatePreview();
+  });
+  document.getElementById('ltpBuy').addEventListener('click', ()=>ltpExecute('buy'));
+  document.getElementById('ltpSell').addEventListener('click', ()=>ltpExecute('sell'));
+  document.getElementById('ltpCloseAllBtn').addEventListener('click', ()=>{ demoCloseAll('MANUAL'); ltpRenderAll(true); });
+  document.getElementById('ltpCancelOrders').addEventListener('click', ()=>{ DEMO.orders.slice().forEach(o=>demoCancelOrder(o.id)); ltpRenderAll(true); });
+  document.getElementById('ltpDep').addEventListener('click', ()=>ltpDoMoney('dep'));
+  document.getElementById('ltpWd').addEventListener('click', ()=>ltpDoMoney('wd'));
+  panel.querySelectorAll('.ltp-chip-amt').forEach(b=>b.addEventListener('click', ()=>{ document.getElementById('ltpMoneyAmt').value = b.getAttribute('data-amt'); }));
+  // delegasi tabel posisi/order -- tabel dibangun ulang (lihat ltpRenderPositions/Orders)
+  panel.addEventListener('click', e=>{
+    const t = e.target.closest('[data-act]'); if(!t) return;
+    const id = Number(t.getAttribute('data-id')), act = t.getAttribute('data-act');
+    if(act==='close') demoClosePosition(id, 'MANUAL');
+    else if(act==='cancel') demoCancelOrder(id);
+    ltpRenderAll(true);
+  });
+  panel.addEventListener('change', e=>{
+    const t = e.target; if(!t.classList.contains('bt-in')) return;
+    const id = Number(t.getAttribute('data-pos')), p = DEMO.positions.find(x=>x.id===id); if(!p) return;
+    const v = t.value==='' ? null : parseFloat(t.value);
+    const r = demoModifyPosition(id, t.getAttribute('data-k')==='sl' ? v : p.sl, t.getAttribute('data-k')==='tp' ? v : p.tp);
+    if(!r.ok) ltpOrderMsg(r.msg, 'bad');
+    t.blur();
+    const posEl = document.getElementById('ltpPositions'); if(posEl) posEl._h = null; // paksa bangun ulang walau ditolak (nilai input harus kembali)
+    ltpRenderAll(true);
+  });
+  // Tombol toggle ada DI DALAM #detailBody yg dibangun ulang tiap render -- delegasi klik ke
+  // #detailBody (elemen stabil) spy listener tak perlu dipasang ulang tiap render (pola sama spt 6j).
+  const body = document.getElementById('detailBody');
+  if(body) body.addEventListener('click', e=>{ if(e.target.closest('#liveTradeBtn')) ltpToggle(); });
+  // SL/TP geser di chart (6m): listener window utk drag yg sedang berjalan -- dipasang SEKALI di sini
+  // (bukan di ltpWireChartDrag yg dipasang ulang tiap render) krn window tak pernah diganti, beda dari
+  // kanvas #chart yg dibangun ulang tiap renderDetail(). Pola identik dgn attachChartDragOnce() (pan).
+  window.addEventListener('mousemove', e=>{ if(LTP.drag) ltpDragMove(ltpCvXY(e)); });
+  window.addEventListener('mouseup', ()=>{ if(LTP.drag) ltpDragEnd(true); });
+  window.addEventListener('keydown', e=>{ if(e.key==='Escape' && LTP.drag) ltpDragEnd(false); });
+  document.getElementById('btnToggleScanner').addEventListener('click', scannerToggle);
+  scannerApplyCollapsed();
+}
+
+/* ============================== 6m. CHART LIVE: SL/TP YANG BISA DIGESER ==============================
+   Port NYARIS VERBATIM dari sistem drag SL/TP backtest (6i: btBuildLevels/btValidateMove/btCommitMove/
+   btDrawLevels/btHitTest/btOnPointer*, baris ~5151-5589) ke kanvas live (#chart) -- HANYA bagian posisi
+   terbuka ('pos') & order pending ('ord'); bagian "Rencana BUY/SELL" ('plan') SENGAJA TIDAK diikutkan krn
+   Panel Order live (6l) sudah langsung eksekusi tanpa tahap rencana terpisah. Geometri harga (garis P/L,
+   validasi SL/TP, gambar pil label) dipakai ULANG LANGSUNG tanpa modifikasi: btRoundRect, btLayoutPills,
+   btDrawPill, btLevelError, btTickRound, btPnl, btHS, btCommission, indTextW -- semuanya pure function yg
+   sudah tidak menyentuh sim.candles/sim.idx (sama seperti alasan reuse di 6k/6l).
+
+   BEDA UTAMA dari backtest: (1) harga acuan "sekarang" = demoMid(sym) (tick live), bukan sim.candles[sim.idx]
+   -- lihat 6k; (2) posisi/order difilter per .sym krn DEMO lintas-pair (6k), hanya pair yg SEDANG digambar
+   (app.asset.sym, diteruskan drawChart) yg levelnya tampil -- pindah pair otomatis menampilkan level pair
+   itu krn drawChart dipanggil ulang dgn app berbeda; (3) live TIDAK pakai Pointer Events + setPointerCapture
+   spt backtest (kanvas backtest permanen di dalam modal) -- live memakai event mouse polos + listener window
+   utk drag-tracking, SAMA PERSIS pola pan yg sudah ada (attachChartDragOnce/wireChartInteraction, bagian 7),
+   krn kanvas live JUGA dibangun ulang (node baru) tiap renderDetail() via innerHTML (lihat ltpWireChartDrag).
+
+   PENTING -- urutan pendaftaran event: wireChartInteraction() memasang canvas.onmousedown utk PAN (geser
+   lihat histori). ltpWireChartDrag() HARUS dipanggil SEBELUM wireChartInteraction() tiap render (lihat hook
+   di renderDetail) supaya listener mousedown drag SL/TP ini terdaftar LEBIH DULU di elemen yg sama (urutan
+   "at target" di spec DOM murni berdasar urutan pendaftaran, BUKAN capture vs bubble, saat listener-listener
+   itu ada di elemen yg SAMA) -- begitu kena handle/tombol, e.stopImmediatePropagation() mencegah pan ikut
+   jalan di event mousedown yg sama; kalau tidak kena apa pun, event diteruskan apa adanya ke pan seperti biasa.
+
+   Batasan jujur: tidak ada haptic/snap-to-tick visual selain pembulatan harga (btTickRound) saat dilepas;
+   label harga di sumbu kanan & toast pesan galat memakai gaya/warnanya sendiri (LTP_LV_COLOR, bukan
+   BT_LV_COLOR) supaya kedua sistem (backtest & live) tidak berbagi satu state global yg sama. */
+const LTP_LV_COLOR = { entry:'#4EA1F3', sl:'#E5484D', tp:'#3DDC84', order:'#E8B94A' };
+function ltpFmtR(r){ return (r>0 ? '+' : '')+r.toFixed(1)+'R'; }
+function ltpLevelInfo(ps, side, entry, size, price, riskRef){
+  const pnl = btPnl(ps, side, entry, price, size);
+  return { pnl, r: riskRef>0 ? pnl/riskRef : null };
+}
+function ltpSegsPnl(label, price, dp, li){
+  return [ { t:label+' '+btNum(price, dp)+'  ', c:'#E7ECF2' },
+           { t:btMoney(li.pnl, true)+(li.r!=null ? ' · '+ltpFmtR(li.r) : ''), c: li.pnl>=0 ? '#3DDC84' : '#E5484D' } ];
+}
+// Daftar garis + chip "tambah level" utk SATU pair (sym) -- posisi/order DEMO difilter per .sym krn akun
+// bersama lintas pair (6k). override = {key,price} (garis yg sedang digeser: teksnya ikut berubah).
+function ltpBuildLevels(sym, override){
+  const app = APP[sym], dp = app.asset.dp, lines = [], chips = [];
+  const mid = demoMid(sym);
+  if(mid==null) return { lines, chips };
+  const ps = demoPseudoSim(sym), hs = btHS(ps);
+  const ov = (key, price)=> (override && override.key===key) ? override.price : price;
+  const lvl = (key, obj, id, part, side, price, entry, size, riskRef, prefix)=>({
+    key, obj, id, part, side, price, color:LTP_LV_COLOR[part], dash:[5,3], drag:true, remove:true,
+    segs: ltpSegsPnl((prefix||'')+(part==='sl' ? 'SL' : 'TP'), price, dp, ltpLevelInfo(ps, side, entry, size, price, riskRef)) });
+  DEMO.positions.filter(p=>p.sym===sym).forEach(p=>{
+    const mark = p.side==='buy' ? mid - hs : mid + hs, kEntry = 'pos:'+p.id+':entry';
+    const riskRef = p.sl0!=null ? Math.abs(btPnl(ps, p.side, p.entry, p.sl0, p.size)) : 0;
+    const fl = btPnl(ps, p.side, p.entry, mark, p.size);
+    lines.push({ key:kEntry, obj:'pos', id:p.id, part:'entry', side:p.side, price:p.entry, color:LTP_LV_COLOR.entry, dash:[], drag:false, remove:false,
+      segs:[ { t:(p.side==='buy'?'BUY ':'SELL ')+p.size+' @ '+btNum(p.entry, dp)+'  ', c:'#E7ECF2' }, { t:btMoney(fl, true), c: fl>=0 ? '#3DDC84' : '#E5484D' } ] });
+    ['sl','tp'].forEach(part=>{
+      const key = 'pos:'+p.id+':'+part, price = ov(key, p[part]);
+      if(price==null) chips.push({ obj:'pos', id:p.id, part, anchor:kEntry, side:p.side });
+      else lines.push(lvl(key, 'pos', p.id, part, p.side, price, p.entry, p.size, riskRef));
+    });
+  });
+  DEMO.orders.filter(o=>o.sym===sym).forEach(o=>{
+    const kPrice = 'ord:'+o.id+':price', op = ov(kPrice, o.price);
+    lines.push({ key:kPrice, obj:'ord', id:o.id, part:'price', side:o.side, price:op, color:LTP_LV_COLOR.order, dash:[6,3], drag:true, remove:true,
+      segs:[ { t:o.type.toUpperCase()+' '+(o.side==='buy'?'BUY':'SELL')+' '+o.size+' @ '+btNum(op, dp), c:'#E7ECF2' } ] });
+    const slp = ov('ord:'+o.id+':sl', o.sl), riskRef = slp!=null ? Math.abs(btPnl(ps, o.side, op, slp, o.size)) : 0;
+    ['sl','tp'].forEach(part=>{
+      const key = 'ord:'+o.id+':'+part, price = ov(key, o[part]);
+      if(price==null) chips.push({ obj:'ord', id:o.id, part, anchor:kPrice, side:o.side });
+      else lines.push(lvl(key, 'ord', o.id, part, o.side, price, op, o.size, riskRef));
+    });
+  });
+  return { lines, chips };
+}
+function ltpValidateMove(sym, hd, price){
+  if(!(price>0)) return { ok:false, msg:'Harga tidak valid.' };
+  const mid = demoMid(sym);
+  if(mid==null) return { ok:false, msg:'Belum ada harga live.' };
+  if(hd.obj==='pos'){
+    const p = DEMO.positions.find(x=>x.id===hd.id);
+    if(!p) return { ok:false, msg:'Posisi sudah tidak ada.' };
+    const ps = demoPseudoSim(sym), hs = btHS(ps);
+    const ref = p.side==='buy' ? mid - hs : mid + hs; // sisi penutup posisi, spt demoModifyPosition
+    const e = hd.part==='sl' ? btLevelError(p.side, ref, price, null) : btLevelError(p.side, ref, null, price);
+    return e ? { ok:false, msg:e } : { ok:true };
+  }
+  if(hd.obj==='ord'){
+    const o = DEMO.orders.find(x=>x.id===hd.id);
+    if(!o) return { ok:false, msg:'Order sudah tidak ada.' };
+    if(hd.part==='price'){
+      const e = demoOrderPriceError(sym, o.type, o.side, price) || btLevelError(o.side, price, o.sl, o.tp);
+      return e ? { ok:false, msg:e } : { ok:true };
+    }
+    const e = hd.part==='sl' ? btLevelError(o.side, o.price, price, null) : btLevelError(o.side, o.price, null, price);
+    return e ? { ok:false, msg:e } : { ok:true };
+  }
+  return { ok:false, msg:'Level tidak dikenal.' };
+}
+function ltpApplyLevel(sym, obj, id, part, price){
+  if(obj==='pos'){
+    const p = DEMO.positions.find(x=>x.id===id);
+    if(!p) return { ok:false, msg:'Posisi sudah tidak ada.' };
+    return demoModifyPosition(id, part==='sl' ? price : p.sl, part==='tp' ? price : p.tp);
+  }
+  if(obj==='ord'){
+    if(part==='price'){
+      if(price===null) return demoCancelOrder(id) ? { ok:true } : { ok:false, msg:'Order sudah tidak ada.' };
+      return demoModifyOrder(id, { price });
+    }
+    return demoModifyOrder(id, part==='sl' ? { sl:price } : { tp:price });
+  }
+  return { ok:false, msg:'Level tidak dikenal.' };
+}
+function ltpCommitMove(sym, hd, price){
+  const v = ltpValidateMove(sym, hd, price);
+  if(!v.ok) return v;
+  return ltpApplyLevel(sym, hd.obj, hd.id, hd.part, price);
+}
+// Level bawaan utk chip "+SL"/"+TP": SL = k x ATR (k dari Panel Order live bila mode ATR, selain itu 1.5),
+// TP = m x R (m dari Panel Order live bila mode R, selain itu 2) dari harga acuan ref.
+function ltpDefaultLevel(sym, side, ref, part, sl, opts){
+  const atr = ltpAtrNow(sym) || ref*0.001, k = (opts && opts.slK>0) ? opts.slK : 1.5, m = (opts && opts.tpR>0) ? opts.tpR : 2;
+  const ps = demoPseudoSim(sym);
+  if(part==='sl') return btTickRound(ps, side==='buy' ? ref - k*atr : ref + k*atr);
+  const dist = sl!=null ? Math.abs(ref - sl) : k*atr;
+  return btTickRound(ps, side==='buy' ? ref + m*dist : ref - m*dist);
+}
+function ltpAddLevel(sym, chip){
+  const mid = demoMid(sym);
+  if(mid==null) return { ok:false, msg:'Belum ada harga live.' };
+  const ps = demoPseudoSim(sym), hs = btHS(ps);
+  const slK = document.getElementById('ltpSlMode').value==='atr' ? parseFloat(document.getElementById('ltpSlVal').value) : null;
+  const tpR = document.getElementById('ltpTpMode').value==='r' ? parseFloat(document.getElementById('ltpTpVal').value) : null;
+  let ref, slNow = null;
+  if(chip.obj==='pos'){ const p = DEMO.positions.find(x=>x.id===chip.id); if(!p) return { ok:false, msg:'Posisi sudah tidak ada.' }; ref = p.side==='buy' ? mid-hs : mid+hs; slNow = p.sl; }
+  else { const o = DEMO.orders.find(x=>x.id===chip.id); if(!o) return { ok:false, msg:'Order sudah tidak ada.' }; ref = o.price; slNow = o.sl; }
+  const price = ltpDefaultLevel(sym, chip.side, ref, chip.part, slNow, { slK, tpR });
+  const v = ltpValidateMove(sym, { obj:chip.obj, id:chip.id, part:chip.part, side:chip.side }, price);
+  if(!v.ok) return v;
+  return ltpApplyLevel(sym, chip.obj, chip.id, chip.part, price);
+}
+
+/* ---- gambar: garis + label (pil) + chip -- btRoundRect/btLayoutPills/btDrawPill DIPAKAI ULANG dari 6i ---- */
+function ltpDrawLevels(g, env, sym){
+  const y = env.y, drag = LTP.drag;
+  const built = ltpBuildLevels(sym, drag ? { key:drag.key, price:drag.price } : null);
+  LTP.handles = []; LTP.hot = [];
+  LTP.scale = { top:env.hi, bot:env.lo, plotH:env.plotH, plotW:env.plotW };
+  const vis = built.lines.filter(ln=>{ ln.ly = y(ln.price); return isFinite(ln.ly) && ln.ly >= -2 && ln.ly <= env.plotH + 2; });
+  if(!vis.length && !built.chips.length && !drag) return; // tak ada posisi/order pair ini -- jangan kerja sia-sia tiap frame
+  g.save(); g.beginPath(); g.rect(0, 0, env.plotW, env.plotH); g.clip();
+  vis.forEach(ln=>{
+    const dragging = !!drag && drag.key===ln.key, hot = dragging || LTP.hoverKey===ln.key;
+    if(dragging){
+      const oy = y(drag.orig);
+      g.strokeStyle = 'rgba(231,236,242,.35)'; g.lineWidth = 1; g.setLineDash([2,4]); g.beginPath(); g.moveTo(0, oy); g.lineTo(env.plotW, oy); g.stroke();
+    }
+    g.strokeStyle = dragging && !drag.valid ? '#8893A3' : ln.color; g.lineWidth = hot ? 2 : 1; g.setLineDash(ln.dash);
+    g.beginPath(); g.moveTo(0, ln.ly); g.lineTo(env.plotW, ln.ly); g.stroke();
+  });
+  g.setLineDash([]); g.lineWidth = 1;
+  btLayoutPills(vis, env.plotH);
+  vis.forEach(ln=>{
+    const dragging = !!drag && drag.key===ln.key, hot = dragging || LTP.hoverKey===ln.key;
+    const segs = ln.segs.slice();
+    if(dragging && !drag.valid && drag.msg) segs.push({ t:'  ✕ '+drag.msg, c:'#E5484D' });
+    const hotRemove = LTP.hoverKey==='rm:'+ln.key;
+    const pill = btDrawPill(g, 6, ln.py, segs, dragging && !drag.valid ? '#E5484D' : ln.color, { remove:ln.remove && !dragging, hot, hotRemove });
+    ln.pill = pill;
+    LTP.handles.push({ key:ln.key, obj:ln.obj, id:ln.id, part:ln.part, side:ln.side, price:ln.price, y:ln.ly, drag:ln.drag, remove:ln.remove, pill });
+    if(pill.removeRect) LTP.hot.push({ x:pill.removeRect.x, y:pill.removeRect.y, w:pill.removeRect.w, h:pill.removeRect.h, act:'remove', key:'rm:'+ln.key,
+      obj:ln.obj, id:ln.id, part:ln.part, side:ln.side });
+  });
+  const nextX = {};
+  built.chips.forEach(ch=>{
+    const anchor = vis.find(l=>l.key===ch.anchor); if(!anchor || !anchor.pill || (drag && drag.moved)) return;
+    const txt = ch.part==='sl' ? '+SL' : '+TP', col = ch.part==='sl' ? LTP_LV_COLOR.sl : LTP_LV_COLOR.tp;
+    g.font = '10px monospace';
+    const x = nextX[ch.anchor]!=null ? nextX[ch.anchor] : anchor.pill.x + anchor.pill.w + 4, w = indTextW(g, txt) + 10, key = 'add:'+ch.anchor+':'+ch.part;
+    g.fillStyle = 'rgba(10,13,18,.9)'; btRoundRect(g, x, anchor.pill.y, w, BT_PILL_H, 4); g.fill();
+    g.strokeStyle = col; g.lineWidth = LTP.hoverKey===key ? 2 : 1; g.setLineDash([3,2]); btRoundRect(g, x, anchor.pill.y, w, BT_PILL_H, 4); g.stroke(); g.setLineDash([]); g.lineWidth = 1;
+    g.fillStyle = col; g.fillText(txt, x + 5, anchor.pill.y + BT_PILL_H/2 + 3.5);
+    LTP.hot.push({ x, y:anchor.pill.y, w, h:BT_PILL_H, act:'add', key, obj:ch.obj, id:ch.id, part:ch.part, side:ch.side });
+    nextX[ch.anchor] = x + w + 4;
+  });
+  g.restore();
+  const gutterX = env.plotW + CHART_RIGHT_GAP; // sinkron dgn drawChart -- harga tetap dekat tepi, candle yg menjauh
+  vis.forEach(ln=>{
+    if(!((drag && drag.key===ln.key) || LTP.hoverKey===ln.key)) return;
+    const col = drag && drag.key===ln.key && !drag.valid ? '#8893A3' : ln.color;
+    g.strokeStyle = col; g.lineWidth = 1; g.setLineDash([2,3]); // sambungkan garis sampai ke kotak nilainya
+    g.beginPath(); g.moveTo(env.plotW, ln.ly); g.lineTo(gutterX+1, ln.ly); g.stroke(); g.setLineDash([]);
+    g.fillStyle = col; g.fillRect(gutterX + 1, ln.ly - 8, CHART_LABEL_W - 2, 16);
+    g.fillStyle = '#06100A'; g.font = 'bold 10px monospace'; g.textAlign = 'left'; g.fillText(btNum(ln.price, env.dp), gutterX + 4, ln.ly + 3);
+  });
+  const t = LTP.toast;
+  if(t && t.until > Date.now()){
+    g.font = '11px monospace'; g.textAlign = 'left';
+    const w = indTextW(g, t.text) + 20, x = Math.max(4, (env.plotW - w)/2);
+    g.fillStyle = 'rgba(10,13,18,.94)'; btRoundRect(g, x, 8, w, 22, 5); g.fill();
+    g.strokeStyle = t.kind==='bad' ? '#E5484D' : '#3DDC84'; g.lineWidth = 1; btRoundRect(g, x, 8, w, 22, 5); g.stroke();
+    g.fillStyle = t.kind==='bad' ? '#FF9A9D' : '#9CF0C0'; g.fillText(t.text, x + 10, 23);
+  }
+}
+function ltpToast(text, kind){
+  LTP.toast = { text, kind:kind||'bad', until:Date.now() + 3500 };
+  clearTimeout(LTP._toastT); LTP._toastT = setTimeout(requestChartRedraw, 3600);
+  requestChartRedraw();
+}
+
+/* ---- interaksi pointer (mouse polos + listener window, lihat catatan seksi) ---- */
+function ltpInRect(p, r){ return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h; }
+function ltpHitTest(p){
+  for(const h of LTP.hot) if(ltpInRect(p, h)) return { type:'hot', hot:h };
+  for(const hd of LTP.handles) if(hd.drag && hd.pill && ltpInRect(p, hd.pill)) return { type:'handle', handle:hd };
+  if(!LTP.scale || p.x < 0 || p.x > LTP.scale.plotW) return null;
+  let best = null, bd = BT_HIT_PX + 0.001;
+  for(const hd of LTP.handles){ if(!hd.drag) continue; const d = Math.abs(p.y - hd.y); if(d <= bd){ best = hd; bd = d; } }
+  return best ? { type:'handle', handle:best } : null;
+}
+function ltpCvXY(e){ const r = document.getElementById('chart').getBoundingClientRect(); return { x:e.clientX - r.left, y:e.clientY - r.top }; }
+function ltpDragMove(p){
+  const d = LTP.drag, S = LTP.scale; if(!d || !S) return;
+  if(Math.abs(p.y - d.y0) > 2) d.moved = true;
+  const yLine = clamp(d.line0 + (p.y - d.y0), 0, S.plotH);
+  const ps = demoPseudoSim(ACTIVE_SYM);
+  d.price = btTickRound(ps, S.bot + (S.plotH - yLine)/S.plotH*(S.top - S.bot));
+  const v = ltpValidateMove(ACTIVE_SYM, d.handle, d.price);
+  d.valid = v.ok; d.msg = v.msg || '';
+  requestChartRedraw();
+}
+function ltpChartPointerDown(e){
+  if(e.button!==0) return;
+  const p = ltpCvXY(e), hit = ltpHitTest(p);
+  if(!hit) return;
+  e.preventDefault();
+  e.stopImmediatePropagation(); // cegah onmousedown pan (wireChartInteraction) ikut jalan di elemen yg sama
+  if(hit.type==='hot'){ ltpRunHot(hit.hot); return; }
+  const hd = hit.handle;
+  LTP.drag = { key:hd.key, handle:hd, y0:p.y, line0:hd.y, price:hd.price, orig:hd.price, valid:true, msg:'', moved:false };
+  document.getElementById('chart').style.cursor = 'ns-resize';
+  requestChartRedraw();
+}
+function ltpChartHover(e){
+  if(LTP.drag) return;
+  const p = ltpCvXY(e);
+  const hit = ltpHitTest(p);
+  const key = hit ? (hit.type==='hot' ? hit.hot.key : hit.handle.key) : null;
+  const canvas = document.getElementById('chart');
+  canvas.style.cursor = !hit ? '' : hit.type==='hot' ? 'pointer' : 'ns-resize';
+  if(LTP.hoverKey !== key){ LTP.hoverKey = key; requestChartRedraw(); }
+}
+function ltpDragEnd(commit){
+  const d = LTP.drag; if(!d) return null;
+  LTP.drag = null;
+  const canvas = document.getElementById('chart'); if(canvas) canvas.style.cursor = '';
+  let res = null;
+  if(commit && d.moved && d.price!==d.orig){
+    res = ltpCommitMove(ACTIVE_SYM, d.handle, d.price);
+    if(!res.ok) ltpToast(res.msg, 'bad');
+  }
+  requestChartRedraw();
+  ltpRenderAll(true); // posisi/order bisa berubah -- sinkronkan panel (no-op kalau tertutup)
+  return res;
+}
+function ltpRunHot(h){
+  let r;
+  if(h.act==='remove') r = ltpApplyLevel(ACTIVE_SYM, h.obj, h.id, h.part, null);
+  else r = ltpAddLevel(ACTIVE_SYM, { obj:h.obj, id:h.id, part:h.part, side:h.side });
+  if(r && !r.ok) ltpToast(r.msg, 'bad');
+  requestChartRedraw();
+  ltpRenderAll(true);
+}
+// Dipasang ULANG tiap render (canvas = node baru tiap renderDetail, lihat hook di renderDetail). Listener
+// drag yg SEDANG BERJALAN (mousemove/mouseup saat LTP.drag aktif) ada di window, dipasang SEKALI di ltpInit().
+function ltpWireChartDrag(canvas){
+  canvas.addEventListener('mousedown', ltpChartPointerDown, true);
+  canvas.addEventListener('mousemove', ltpChartHover);
+  canvas.addEventListener('mouseleave', ()=>{
+    if(LTP.drag) return;
+    if(LTP.hoverKey!=null){ LTP.hoverKey=null; canvas.style.cursor=''; requestChartRedraw(); }
+  });
+}
+
+/* ============================== 6n. SIDEBAR PAIR: SEMBUNYIKAN/TAMPILKAN ==============================
+   Chart live (.detail) adalah flex:1 di dalam .layout (flex row) bersama .scanner (sidebar 12-pair,
+   lebar tetap). Menyembunyikan .scanner (width:0, lihat CSS .scanner.collapsed) otomatis membuat .detail
+   melebar mengisi ruang kosong -- tak perlu logika resize manual, cukup manfaatkan flexbox yg sudah ada.
+   Status (tersembunyi/tidak) disimpan di localStorage supaya pilihan tata letak bertahan lintas sesi,
+   sama polanya dgn akun demo (6k) & daftar indikator per pair (6j). */
+const SCANNER_COLLAPSED_KEY = 'lfc_scanner_collapsed';
+let SCANNER_COLLAPSED = (()=>{ try{ return localStorage.getItem(SCANNER_COLLAPSED_KEY)==='1'; }catch(e){ return false; } })();
+function scannerApplyCollapsed(){
+  const el = document.getElementById('scannerPanel'), btn = document.getElementById('btnToggleScanner');
+  if(el) el.classList.toggle('collapsed', SCANNER_COLLAPSED);
+  if(btn) btn.textContent = SCANNER_COLLAPSED ? '▶ Tampilkan Pair' : '◀ Sembunyikan Pair';
+}
+function scannerToggle(){
+  SCANNER_COLLAPSED = !SCANNER_COLLAPSED;
+  try{ localStorage.setItem(SCANNER_COLLAPSED_KEY, SCANNER_COLLAPSED?'1':'0'); }catch(e){}
+  scannerApplyCollapsed();
+  requestChartRedraw();
+  setTimeout(requestChartRedraw, 220); // gambar ulang lagi setelah transisi CSS lebar .scanner selesai (~200ms)
+}
+
+/* ============================== 6o. PENCARIAN & PILIH PAIR (ala TradingView) ==============================
+   Sebelumnya satu-satunya cara ganti pair live adalah klik baris di sidebar Scanner (daftar 12 pair,
+   selalu terlihat) -- itu TETAP ada (tak dihapus), ini TAMBAHAN cara yg lebih cepat: tombol 🔍 di judul
+   chart membuka modal pencarian cepat (ketik simbol/nama, klik baris, langsung pindah), mirip simbol
+   search TradingView, tanpa perlu menggulir sidebar atau membukanya kalau sedang disembunyikan (6n).
+   Modal ini TRANSIENT (buka-pilih-tutup) jadi dibuat sbg .modal-overlay/.modal-panel biasa (pola sama persis
+   dgn modal Kalibrasi/Analisis/Backtest) -- BUKAN panel statis permanen spt #liveIndPanel/#liveTradePanel,
+   krn tak ada input yg perlu "selamat" dari render ulang 1Hz (search box cuma aktif sebentar saat modal
+   terbuka, dan modal sendiri tak pernah disentuh renderDetail()). Mekanisme pemilihan pair SAMA PERSIS
+   dgn klik baris Scanner: set ACTIVE_SYM lalu renderAll(). */
+function pairSearchOpen(){
+  const o = document.getElementById('pairSearchOverlay'); if(!o) return;
+  o.style.display = 'flex';
+  const inp = document.getElementById('pairSearchInput');
+  inp.value = ''; pairSearchRenderList();
+  setTimeout(()=>inp.focus(), 0);
+}
+function pairSearchClose(){
+  const o = document.getElementById('pairSearchOverlay'); if(o) o.style.display = 'none';
+}
+function pairSearchRenderList(){
+  const list = document.getElementById('pairSearchList'); if(!list) return;
+  const q = (document.getElementById('pairSearchInput').value||'').trim().toLowerCase();
+  const matches = ASSETS.filter(a=>!q || a.sym.toLowerCase().includes(q) || a.name.toLowerCase().includes(q));
+  if(!matches.length){ list.innerHTML = '<div class="bt-muted" style="padding:10px 0;text-align:center;">Tidak ada pair yg cocok.</div>'; return; }
+  list.innerHTML = matches.map(a=>{
+    const app = APP[a.sym];
+    const live = app && app.connState==='live';
+    return '<div class="row" data-sym="'+a.sym+'" style="cursor:pointer;border-radius:8px;'+(a.sym===ACTIVE_SYM?'background:#132030;':'')+'">'
+      + '<span class="sym">'+a.sym+'</span><span class="cls">'+a.cls+'</span>'
+      + '<span class="bias" style="flex:1;color:var(--mut);">'+a.name+'</span>'
+      + (live ? '<span class="dot live"></span>LIVE' : '<span class="dot sim"></span>SIM')
+      + '</div>';
+  }).join('');
+}
+function pairSearchPick(sym){
+  if(!APP[sym]) return;
+  ACTIVE_SYM = sym;
+  pairSearchClose();
+  renderAll();
+}
+function pairSearchInit(){
+  const overlay = document.getElementById('pairSearchOverlay'); if(!overlay) return;
+  document.getElementById('pairSearchClose').addEventListener('click', pairSearchClose);
+  overlay.addEventListener('click', e=>{ if(e.target.id==='pairSearchOverlay') pairSearchClose(); });
+  document.getElementById('pairSearchInput').addEventListener('input', pairSearchRenderList);
+  document.getElementById('pairSearchList').addEventListener('click', e=>{
+    const row = e.target.closest('[data-sym]'); if(row) pairSearchPick(row.getAttribute('data-sym'));
+  });
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && overlay.style.display!=='none') pairSearchClose(); });
+  // Tombol 🔍 ada DI DALAM #detailBody yg dibangun ulang tiap render -- delegasi klik ke #detailBody
+  // (elemen stabil), pola sama spt #liveIndBtn (6j) & #liveTradeBtn (6l).
+  const body = document.getElementById('detailBody');
+  if(body) body.addEventListener('click', e=>{ if(e.target.closest('#pairSearchBtn')) pairSearchOpen(); });
+}
+
+/* ============================== 6p. BERITA EKONOMI (kalender ForexFactory via bridge) ==============================
+   Simbol di chart live menandai JAM rilis berita ekonomi (NFP, FOMC, CPI, dst.) yg relevan dgn pair yg
+   sedang dibuka -- titik+garis kecil di atas panel harga, warna sesuai dampak (merah=High, kuning=Medium,
+   abu=Low), dgn tooltip hover (judul, waktu, prediksi/sebelumnya).
+
+   SUMBER DATA (penting, baca sebelum mengandalkan ini): feed ForexFactory yg DIPAKAI bridge.mjs (lihat
+   proyek terpisah "Order Flow Bridge") BUKAN API resmi -- tidak didokumentasikan ForexFactory, bisa
+   berubah/berhenti kapan saja tanpa pemberitahuan (dipakai krn per Okt 2026 tak ada API kalender ekonomi
+   gratis+CORS-terbuka yg terverifikasi; banyak tool trading gratis lain, mis. indikator MT4, memakai feed
+   yg sama). Browser TIDAK bisa fetch() feed itu langsung (diblokir CORS, server ForexFactory tak mengirim
+   header Access-Control-Allow-Origin) -- bridge.mjs yg mengambilnya server-side (bebas CORS) & cache 15
+   menit, lalu app di sini HANYA memanggil endpoint lokal bridge sendiri (http://localhost:8787/news,
+   port sama dgn ws:// harga, cuma protokol beda) yg CORS-nya dibuka lebar (punya kita sendiri) -- jalan
+   baik app dibuka lewat file:// maupun http://localhost:8850. Kalau bridge belum jalan / endpoint /news
+   gagal, fetchNews() diam saja (NEWS.events tetap kosong) -- BUKAN fitur kritikal, tak mengganggu jalur
+   harga live yg sudah ada.
+
+   Batasan jujur: pemetaan pair->mata uang (NEWS_CCY) itu perkiraan kasar (mis. DAX40 cuma EUR, padahal
+   indeks saham modern juga ikut bereaksi ke berita USD) -- cukup utk menyaring kebisingan, bukan daftar
+   lengkap korelasi makro. Event "Holiday" sengaja TIDAK ditampilkan (bukan jam rilis spesifik, cuma
+   penanda hari libur low-liquidity). Posisi X simbol diinterpolasi linear antar-candle (bukan snap ke
+   candle terdekat) berdasarkan periode candle yg SEDANG tampil (M1/M5/dst.) -- akurat relatif thd jendela
+   yg dilihat, bukan presisi absolut ke detik. */
+let NEWS = { events: [], fetchedAt: 0 };
+let NEWS_HIT = [], NEWS_HOVER = null;
+const NEWS_COLOR = { High:'#E5484D', Medium:'#E8B94A', Low:'#8893A3' };
+const NEWS_CCY = {
+  BTCUSDT:['USD'], ETHUSDT:['USD'], SOLUSDT:['USD'],
+  XAUUSD:['USD'], XAGUSD:['USD'],
+  EURUSD:['EUR','USD'], GBPUSD:['GBP','USD'], USDJPY:['USD','JPY'],
+  US30:['USD'], US100:['USD'], US500:['USD'], DAX40:['EUR'],
+};
+async function fetchNews(){
+  try {
+    const base = (document.getElementById('bridgeUrl').value || '').trim() || 'ws://localhost:8787';
+    const httpBase = base.replace(/^ws/i, 'http').replace(/\/+$/, '');
+    const res = await fetch(httpBase + '/news');
+    if(!res.ok) return;
+    const d = await res.json();
+    if(d && Array.isArray(d.events)) NEWS = d;
+  } catch(e) { /* bridge blm jalan / endpoint /news blm ada -- diam, bukan fitur kritikal */ }
+}
+function newsRelevant(sym){
+  const ccys = NEWS_CCY[sym] || ['USD'];
+  return NEWS.events.filter(e => e.impact!=='Holiday' && (e.country==='All' || ccys.includes(e.country)));
+}
+function newsHitTest(p){
+  for(const h of NEWS_HIT) if(Math.abs(p.x-h.x)<=6 && Math.abs(p.y-h.y)<=9) return h;
+  return null;
+}
+function newsDrawTooltip(g, plotW){
+  if(!NEWS_HOVER) return;
+  const hit = NEWS_HIT.find(h=>h.ev===NEWS_HOVER);
+  if(!hit) return;
+  const ev = hit.ev;
+  const when = new Date(ev.ts).toLocaleString('id-ID',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const lines = [
+    ev.country+' · '+ev.impact+' · '+when,
+    ev.title,
+  ];
+  if(ev.forecast || ev.previous) lines.push('Prediksi '+(ev.forecast||'—')+'  ·  Sebelumnya '+(ev.previous||'—'));
+  g.font = '10px monospace'; g.textAlign = 'left';
+  const w = Math.max(...lines.map(l=>indTextW(g,l))) + 16, h = lines.length*13+8;
+  const boxX = clamp(hit.x - w/2, 4, Math.max(4,plotW-w-4)), boxY = 24;
+  g.fillStyle = 'rgba(10,13,18,.95)'; btRoundRect(g, boxX, boxY, w, h, 5); g.fill();
+  g.strokeStyle = NEWS_COLOR[ev.impact] || '#8893A3'; g.lineWidth = 1; btRoundRect(g, boxX, boxY, w, h, 5); g.stroke();
+  g.fillStyle = '#E7ECF2';
+  lines.forEach((l,i)=> g.fillText(l, boxX+8, boxY+16+i*13));
+}
+function newsChartHover(e){
+  const canvas = document.getElementById('chart'); if(!canvas) return;
+  const r = canvas.getBoundingClientRect();
+  const hit = newsHitTest({ x:e.clientX-r.left, y:e.clientY-r.top });
+  const next = hit ? hit.ev : null;
+  if(NEWS_HOVER !== next){ NEWS_HOVER = next; requestChartRedraw(); }
+}
+// Dipasang ULANG tiap render (kanvas = node baru tiap renderDetail, sama alasannya dgn ltpWireChartDrag).
+function newsWireChart(canvas){
+  canvas.addEventListener('mousemove', newsChartHover);
+  canvas.addEventListener('mouseleave', ()=>{ if(NEWS_HOVER){ NEWS_HOVER=null; requestChartRedraw(); } });
 }
 
 /* ================================= 8. BOOTSTRAP ================================= */
@@ -6311,6 +7549,8 @@ loadJournal(); loadCalibHistory(); loadTrials();
 ASSETS.forEach(initAsset);
 attachChartDragOnce();
 liveIndInit();
+ltpInit();
+pairSearchInit();
 document.getElementById('btnReconnectAll').addEventListener('click', startConnections);
 document.getElementById('btnCalibration').addEventListener('click', openSettingsModal);
 document.getElementById('btnCloseSettings').addEventListener('click', closeSettingsModal);
@@ -6331,6 +7571,8 @@ document.querySelectorAll('#analysisOverlay .tab-btn').forEach(b=>{
   b.addEventListener('click', ()=>switchAnalysisTab(b.getAttribute('data-tab')));
 });
 startConnections();
+fetchNews();
+setInterval(fetchNews, 10*60*1000);
 renderAll();
 setInterval(renderAll, 1000);
 
