@@ -4238,7 +4238,12 @@ function btDrawChart(){
   const W = cv.clientWidth, H = cv.clientHeight;
   if(!W || !H) return;
   const dpr = window.devicePixelRatio || 1;
-  cv.width = W*dpr; cv.height = H*dpr;
+  // Set ulang cv.width/height SELALU membuang & mengalokasikan ulang seluruh bitmap kanvas (perilaku
+  // baku browser, bahkan kalau nilainya SAMA persis) -- kalau dilakukan tiap frame saat drag SL/TP atau
+  // chart berjalan (btDrawChartSoon via rAF, jadi tetap ~60x/detik), ini jadi biang patah-patah krn
+  // ukuran kanvas hampir selalu TIDAK berubah antar frame, cuma datanya. Lewati kalau ukurannya sama.
+  const pxW = Math.round(W*dpr), pxH = Math.round(H*dpr);
+  if(cv.width!==pxW || cv.height!==pxH){ cv.width = pxW; cv.height = pxH; }
   const ctx = cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
   const dp = sim.asset.dp;
   const endIdx = sim.idx+1, count = Math.max(20, Math.min(BT.view.count, endIdx));
@@ -4374,7 +4379,9 @@ function btDrawEquity(){
   const W = cv.clientWidth, H = cv.clientHeight;
   if(!W || !H) return;
   const dpr = window.devicePixelRatio || 1;
-  cv.width = W*dpr; cv.height = H*dpr;
+  // Sama spt btDrawChart -- lewati realokasi bitmap kalau ukuran piksel tak berubah (lihat komentarnya).
+  const pxW = Math.round(W*dpr), pxH = Math.round(H*dpr);
+  if(cv.width!==pxW || cv.height!==pxH){ cv.width = pxW; cv.height = pxH; }
   const ctx = cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
   const pts = sim.points;
   if(pts.length<2){ ctx.fillStyle='#4E5867'; ctx.font='12px sans-serif'; ctx.fillText('Jalankan simulasi untuk melihat kurva ekuitas.',10,20); return; }
@@ -6164,8 +6171,11 @@ function drawChart(canvas, m1, eng, dp, view, app){
   const wantH = baseWant + subs.length*(LIVE_SUB_H+LIVE_SUB_GAP);
   if(canvas.style.height !== wantH+'px') canvas.style.height = wantH+'px';
   const ctx = canvas.getContext('2d');
-  const w = canvas.width = canvas.clientWidth * devicePixelRatio;
-  const h = canvas.height = canvas.clientHeight * devicePixelRatio;
+  // Sama spt btDrawChart (backtest) -- cv.width/height SELALU membuang & realokasi bitmap walau nilainya
+  // sama persis, jadi biang patah-patah kalau di-set tiap frame saat pan/drag (lewat rAF, ~60x/detik)
+  // padahal ukuran kanvas nyaris tak pernah berubah antar frame. Lewati kalau ukuran piksel sama.
+  const pxW = Math.round(canvas.clientWidth * devicePixelRatio), pxH = Math.round(canvas.clientHeight * devicePixelRatio);
+  if(canvas.width!==pxW || canvas.height!==pxH){ canvas.width = pxW; canvas.height = pxH; }
   ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
   const W=canvas.clientWidth, H=canvas.clientHeight;
   const baseH = Math.max(H - subs.length*(LIVE_SUB_H+LIVE_SUB_GAP), 60); // tinggi panel HARGA saja (tanpa panel bawah)
