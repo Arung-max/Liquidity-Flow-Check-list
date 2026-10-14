@@ -4260,12 +4260,17 @@ function btDrawChart(){
     try{ a.res = btIndResult(a.inst, a.def, sim, env); BT.indRes.set(a.inst.uid, a.res); }
     catch(e){ a.res = null; fail(a, e); }
   });
-  // skala harga: candle + level posisi/order + indikator overlay. Level/indikator yg lebih dari satu
-  // "tinggi candle" di luar rentang tidak ikut skala (supaya level jauh tidak menggepengkan candle).
+  // skala harga: candle + level posisi/order + indikator overlay. Level yg terlalu jauh di luar rentang
+  // candle TIDAK ikut melebarkan skala (supaya level jauh tidak menggepengkan candle). Ambang 100% dari
+  // rentang candle (rng) terlalu longgar -- level yg masih "jauh tapi dlm 1x rng" tetap memaksa skala
+  // melebar drastis & candle jadi gepeng (dilaporkan user: garis entry tampak jauh dari candle saat
+  // harga sudah bergeser banyak). Diperketat ke 30% dari rng: level yg genuinely dekat harga tetap
+  // ikut skala (spt sebelumnya), level yg jauh cukup tak digambar (di luar kanvas) tanpa menggepengkan candle.
   const hi0 = Math.max(...data.map(c=>c.h)), lo0 = Math.min(...data.map(c=>c.l));
   const rng = hi0-lo0 || hi0*0.001;
+  const extTol = rng*0.3;
   let hi = hi0, lo = lo0;
-  const extend = v => { if(v!=null && isFinite(v) && v>lo0-rng && v<hi0+rng){ if(v>hi) hi = v; if(v<lo) lo = v; } };
+  const extend = v => { if(v!=null && isFinite(v) && v>lo0-extTol && v<hi0+extTol){ if(v>hi) hi = v; if(v<lo) lo = v; } };
   sim.positions.forEach(p=>{ extend(p.entry); extend(p.sl); extend(p.tp); });
   sim.orders.forEach(o=>{ extend(o.price); extend(o.sl); extend(o.tp); });   // SL/TP order pending kini juga digambar -> ikut skala
   const planG = BT.plan ? btPlanGeometry(sim, BT.plan) : null;
@@ -4880,6 +4885,53 @@ const BT_INDICATORS = {
   /* ---------- TREN & HARGA ---------- */
   ema: indMaEntry('ema'),
   sma: indMaEntry('sma'),
+  emacolor: {
+    name:'EMA Color', group:'Tren & Harga', pane:'price', layer:'over', mode:'series',
+    desc:'EMA yg warnanya berganti mengikuti arah -- hijau kalau 2 close terakhir (bar ini & sebelumnya) di atas EMA, merah selain itu. Aturan SAMA PERSIS dgn EA "EMA Color Reverse" (lihat Strategi di Panel Backtest) yg memakainya sbg sinyal BUY/SELL -- di sini cuma garis tampilan, TIDAK memengaruhi sinyal mesin/hasil backtest.',
+    params: [
+      { k:'period', label:'Periode', type:'int', def:50, min:2, max:500 },
+      { k:'src', label:'Sumber harga', type:'select', def:'close', options:IND_SOURCES },
+      { k:'colorUp', label:'Warna Hijau (bullish)', type:'color', def:'#3DDC84' },
+      { k:'colorDown', label:'Warna Merah (bearish)', type:'color', def:'#E5484D' },
+      { k:'width', label:'Tebal garis', type:'int', def:2, min:1, max:4 },
+      { k:'showPct', label:'Tampilkan % jarak harga ke garis', type:'bool', def:true },
+    ],
+    title: p => 'EMA Color ('+p.period+')',
+    calc(candles, p){
+      const s = indSource(candles, p.src);
+      const v = indMA(s, p.period, 2/(p.period+1));
+      // Arah per bar -- WAJIB kausal: cuma pakai candles[i]/candles[i-1]/v[i], sama persis rule btEaSignal.
+      const up = new Array(candles.length).fill(null);
+      for(let i=1;i<candles.length;i++){
+        const e = v[i]; if(e==null) continue;
+        const cur = candles[i].c, prev = candles[i-1].c;
+        up[i] = (prev>e && cur>e);
+      }
+      return { v, up };
+    },
+    bounds(res, p, env){ return indMinMax([res.v], env.startIdx, env.endIdx); },
+    draw(g, res, p, env){
+      // Per-segmen (bukan indPath satu warna) -- warna segmen [i-1,i] mengikuti arah di bar i, spy
+      // pergantian hijau/merah terlihat persis di titik yg sama dgn saat EA (§14) akan membalik posisi.
+      g.lineWidth = p.width;
+      for(let i=Math.max(env.startIdx+1,1); i<env.endIdx; i++){
+        const v0 = res.v[i-1], v1 = res.v[i];
+        if(v0==null || v1==null) continue;
+        g.strokeStyle = res.up[i]==null ? '#8893A3' : (res.up[i] ? p.colorUp : p.colorDown);
+        g.beginPath(); g.moveTo(env.xc(i-1), env.y(v0)); g.lineTo(env.xc(i), env.y(v1)); g.stroke();
+      }
+      g.lineWidth = 1;
+      if(p.showPct){
+        const v = res.v[env.idx];
+        if(v!=null){
+          const col = res.up[env.idx]==null ? '#8893A3' : (res.up[env.idx] ? p.colorUp : p.colorDown);
+          indTag(env, 'EMA Color '+p.period+'  '+btNum(v, env.dp), v, col, indPctOf(env.candles[env.idx].c, v));
+        }
+      }
+    },
+    pctRef(res, p, i){ return res.v[i]; },
+    legend(res, p, i, dp){ return res.v[i]==null ? '' : res.v[i].toFixed(dp) + (res.up[i]==null ? '' : (res.up[i] ? ' ▲' : ' ▼')); },
+  },
 
   vwap: {
     name:'VWAP Sesi ± SD', group:'Tren & Harga', pane:'price', layer:'under', mode:'series',
