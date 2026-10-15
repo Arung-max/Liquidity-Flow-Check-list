@@ -5003,6 +5003,90 @@ const BT_INDICATORS = {
     legend(res, p, i, dp){ return res.basis[i]==null ? '' : 'A '+res.up[i].toFixed(dp)+'  M '+res.basis[i].toFixed(dp)+'  B '+res.lo[i].toFixed(dp); },
   },
 
+  envelopes: {
+    name:'Envelopes', group:'Tren & Harga', pane:'price', layer:'over', mode:'series',
+    desc:'Pita persentase TETAP di atas/bawah moving average (SMA/EMA) -- beda dari Bollinger Bands yg lebarnya mengikuti volatilitas (simpangan baku), lebar pita Envelopes selalu sama persis (% dari nilai MA), jadi lebih cocok membaca seberapa jauh harga menyimpang dari rata-rata trennya sendiri.',
+    params: [
+      { k:'period', label:'Periode MA', type:'int', def:20, min:1, max:500 },
+      { k:'maType', label:'Jenis MA', type:'select', def:'sma', options:[ { v:'sma', l:'SMA' }, { v:'ema', l:'EMA' } ] },
+      { k:'src', label:'Sumber harga', type:'select', def:'close', options:IND_SOURCES },
+      { k:'pct', label:'Lebar pita (%)', type:'num', def:2.5, min:0.1, max:20, step:0.1 },
+      { k:'fill', label:'Isi area pita', type:'bool', def:true },
+      { k:'color', label:'Warna', type:'color', def:'#56ccf2' },
+    ],
+    title: p => 'Envelopes ('+p.period+', '+p.pct+'%)',
+    calc(candles, p){
+      const s = indSource(candles, p.src);
+      const basis = p.maType==='ema' ? indMA(s, p.period, 2/(p.period+1)) : indSMA(s, p.period);
+      const mult = p.pct/100;
+      const up = basis.map(b => b==null ? null : b*(1+mult));
+      const lo = basis.map(b => b==null ? null : b*(1-mult));
+      return { basis, up, lo };
+    },
+    bounds(res, p, env){ return indMinMax([res.up, res.lo], env.startIdx, env.endIdx); },
+    draw(g, res, p, env){
+      if(p.fill) indBand(env, res.up, res.lo, indHexRgba(p.color, 0.08));
+      indPath(env, res.up, p.color, 1); indPath(env, res.lo, p.color, 1);
+      indPath(env, res.basis, indHexRgba(p.color, 0.7), 1, [4,3]);
+    },
+    legend(res, p, i, dp){ return res.basis[i]==null ? '' : 'A '+res.up[i].toFixed(dp)+'  M '+res.basis[i].toFixed(dp)+'  B '+res.lo[i].toFixed(dp); },
+  },
+
+  psar: {
+    name:'Parabolic SAR', group:'Tren & Harga', pane:'price', layer:'over', mode:'series',
+    desc:'Stop And Reverse (Wilder) -- titik trailing yg mengikuti tren: di BAWAH candle = tren naik (dukungan), di ATAS candle = tren turun (resistensi); berbalik sisi saat harga menembusnya. Titik bar ke-i HANYA memakai H/L bar 0..i (kausal), tak pernah mengintip bar setelahnya.',
+    params: [
+      { k:'start', label:'AF awal', type:'num', def:0.02, min:0.001, max:0.5, step:0.001 },
+      { k:'step', label:'AF kenaikan', type:'num', def:0.02, min:0.001, max:0.5, step:0.001 },
+      { k:'max', label:'AF maksimum', type:'num', def:0.2, min:0.01, max:1, step:0.01 },
+      { k:'colorUp', label:'Warna tren naik', type:'color', def:'#3DDC84' },
+      { k:'colorDown', label:'Warna tren turun', type:'color', def:'#E5484D' },
+      { k:'size', label:'Ukuran titik', type:'int', def:3, min:1, max:8 },
+      { k:'showPct', label:'Tampilkan % jarak harga ke titik', type:'bool', def:true },
+    ],
+    title: p => 'Parabolic SAR ('+p.start+', '+p.step+', '+p.max+')',
+    calc(candles, p){
+      const n = candles.length;
+      const sar = new Array(n).fill(null), up = new Array(n).fill(null);
+      if(n<2) return { sar, up };
+      // Seed bar 0 -> arah awal ditebak dari close[1] vs close[0] (konvensi umum, tak ada cara lain
+      // tanpa bar ke-2); sar[0] sendiri dibiarkan null (belum ada histori utk menghitungnya).
+      let bull = candles[1].c >= candles[0].c;
+      let ep = bull ? candles[0].h : candles[0].l;
+      let af = p.start;
+      let cur = bull ? candles[0].l : candles[0].h;
+      for(let i=1;i<n;i++){
+        const c = candles[i], prev = candles[i-1], prev2 = i>=2 ? candles[i-2] : prev;
+        let next = cur + af*(ep-cur);
+        if(bull){
+          next = Math.min(next, prev.l, prev2.l);
+          if(c.l < next){ bull = false; next = ep; ep = c.l; af = p.start; }
+          else if(c.h > ep){ ep = c.h; af = Math.min(af+p.step, p.max); }
+        } else {
+          next = Math.max(next, prev.h, prev2.h);
+          if(c.h > next){ bull = true; next = ep; ep = c.h; af = p.start; }
+          else if(c.l < ep){ ep = c.l; af = Math.min(af+p.step, p.max); }
+        }
+        sar[i] = next; up[i] = bull; cur = next;
+      }
+      return { sar, up };
+    },
+    bounds(res, p, env){ return indMinMax([res.sar], env.startIdx, env.endIdx); },
+    draw(g, res, p, env){
+      for(let i=env.startIdx;i<env.endIdx;i++){
+        const v = res.sar[i]; if(v==null) continue;
+        g.fillStyle = res.up[i] ? p.colorUp : p.colorDown;
+        g.beginPath(); g.arc(env.xc(i), env.y(v), p.size, 0, Math.PI*2); g.fill();
+      }
+      if(p.showPct){
+        const v = res.sar[env.idx];
+        if(v!=null){ const col = res.up[env.idx] ? p.colorUp : p.colorDown; indTag(env, 'SAR '+btNum(v, env.dp), v, col, indPctOf(env.candles[env.idx].c, v)); }
+      }
+    },
+    pctRef(res, p, i){ return res.sar[i]; },
+    legend(res, p, i, dp){ return res.sar[i]==null ? '' : res.sar[i].toFixed(dp) + (res.up[i]==null ? '' : (res.up[i] ? ' ▲' : ' ▼')); },
+  },
+
   /* ---------- MOMENTUM & VOLATILITAS (panel bawah) ---------- */
   rsi: {
     name:'RSI', group:'Momentum & Volatilitas', pane:'sub', mode:'series',
